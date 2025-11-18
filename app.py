@@ -1,12 +1,13 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, render_template_string
+from fibonacci_routes import fibo_bp
+from stock_signals_routes import signals_bp
 
 app = Flask(__name__)
 
-# 斐波那契回撤水平（支撐位）
-FIBONACCI_RETRACEMENT_LEVELS = [0.236, 0.382, 0.500, 0.618]
-
-# 斐波那契擴展水平（壓力位）
-FIBONACCI_EXTENSION_LEVELS = [1.382, 1.5, 1.618, 1.786, 2.0]
+# 註冊藍圖
+# 注意：fibo_bp 不註冊路由，只使用其函數邏輯（避免與主路由 '/' 衝突）
+# signals_bp 註冊為 '/signals'
+app.register_blueprint(signals_bp, url_prefix='/signals')
 
 # HTML 模板
 HTML_TEMPLATE = """
@@ -15,7 +16,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>斐波那契支撐位與壓力位計算器</title>
+    <title>斐波那契計算器 & 股票訊號儀表板</title>
     <style>
         * {
             margin: 0;
@@ -38,16 +39,43 @@ HTML_TEMPLATE = """
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             padding: 40px;
-            max-width: 900px;
+            max-width: 1200px;
             width: 100%;
         }
         
-        h1 {
+        .section {
+            margin-bottom: 50px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .section h2 {
             color: #333;
+            margin-bottom: 25px;
+            font-size: 24px;
+            font-weight: 600;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        h1 {
             text-align: center;
             margin-bottom: 30px;
-            font-size: 28px;
-            font-weight: 600;
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         .form-group {
@@ -62,7 +90,8 @@ HTML_TEMPLATE = """
             font-size: 14px;
         }
         
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"] {
             width: 100%;
             padding: 12px;
             border: 2px solid #e0e0e0;
@@ -71,7 +100,8 @@ HTML_TEMPLATE = """
             transition: border-color 0.3s;
         }
         
-        input[type="number"]:focus {
+        input[type="number"]:focus,
+        input[type="text"]:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -109,6 +139,96 @@ HTML_TEMPLATE = """
             transform: translateY(0);
         }
         
+        .btn-signal {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .signal-card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .signal-group {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .signal-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .signal-group-title {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .signal-item:last-child {
+            border-bottom: none;
+        }
+        
+        .signal-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .signal-value {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .signal-yes {
+            color: #27ae60;
+        }
+        
+        .signal-no {
+            color: #e74c3c;
+        }
+        
+        .stock-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .stock-info h3 {
+            margin: 0;
+            font-size: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .signal-group {
+                padding: 15px;
+            }
+        }
+        
         .results {
             margin-top: 30px;
             display: none;
@@ -118,7 +238,7 @@ HTML_TEMPLATE = """
             display: block;
         }
         
-        .results h2 {
+        .results h3 {
             color: #333;
             margin-bottom: 20px;
             font-size: 22px;
@@ -215,101 +335,259 @@ HTML_TEMPLATE = """
         .info-box strong {
             color: #333;
         }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .error-message {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .success-message {
+            animation: slideIn 0.3s ease-out;
+            margin-top: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-radius: 8px;
+            border-left: 4px solid #27ae60;
+            box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📈 斐波那契支撐位與壓力位計算器</h1>
+        <h1>📈 斐波那契計算器 & 股票訊號儀表板</h1>
         
-        <form method="POST" id="fibonacciForm">
-            <div class="form-group">
-                <label for="high_price">高點價格 (High Price):</label>
-                <input type="number" 
-                       id="high_price" 
-                       name="high_price" 
-                       step="0.01" 
-                       min="0" 
-                       required
-                       value="{{ request.form.get('high_price', '') if request.form else '' }}">
-                <div class="error" id="high_error"></div>
-            </div>
+        <!-- 斐波那契計算器區塊 -->
+        <div class="section">
+            <h2>📊 斐波那契支撐位與壓力位計算器</h2>
             
-            <div class="form-group">
-                <label for="low_price">低點價格 (Low Price):</label>
-                <input type="number" 
-                       id="low_price" 
-                       name="low_price" 
-                       step="0.01" 
-                       min="0" 
-                       required
-                       value="{{ request.form.get('low_price', '') if request.form else '' }}">
-                <div class="error" id="low_error"></div>
-            </div>
+            <form method="POST" action="/">
+                <input type="hidden" name="form_type" value="fibonacci">
+                <div class="form-group">
+                    <label for="high_price">高點價格 (High Price):</label>
+                    <input type="number" 
+                           id="high_price" 
+                           name="high_price" 
+                           step="0.01" 
+                           min="0" 
+                           required
+                           value="{{ request.form.get('high_price', '') if request.form else '' }}">
+                    <div class="error" id="high_error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="low_price">低點價格 (Low Price):</label>
+                    <input type="number" 
+                           id="low_price" 
+                           name="low_price" 
+                           step="0.01" 
+                           min="0" 
+                           required
+                           value="{{ request.form.get('low_price', '') if request.form else '' }}">
+                    <div class="error" id="low_error"></div>
+                </div>
+                
+                <button type="submit">計算斐波那契支撐位與壓力位</button>
+            </form>
             
-            <button type="submit">計算斐波那契支撐位與壓力位</button>
-        </form>
-        
-        {% if error %}
-        <div class="error show" style="margin-top: 15px; padding: 12px; background: #fee; border-radius: 8px; border-left: 4px solid #e74c3c;">
-            {{ error }}
-        </div>
-        {% endif %}
-        
-        {% if support_levels or resistance_levels %}
-        <div class="results show">
-            <h2>計算結果</h2>
-            
-            {% if support_levels %}
-            <div class="table-section">
-                <h3>🛡️ 潛在支撐位 (斐波那契回撤)</h3>
-                <table class="support-table">
-                    <thead>
-                        <tr>
-                            <th>回撤水平</th>
-                            <th>支撐價格</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for level, price in support_levels %}
-                        <tr>
-                            <td class="level">{{ "%.3f"|format(level) }}</td>
-                            <td class="price support-price">{{ "%.2f"|format(price) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            {% if fibonacci_error %}
+            <div class="error-message" style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #fee 0%, #fdd 100%); border-radius: 8px; border-left: 4px solid #e74c3c; box-shadow: 0 2px 8px rgba(231, 76, 60, 0.2); animation: slideIn 0.3s ease-out;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">⚠️</span>
+                    <div>
+                        <strong style="color: #c0392b; font-size: 16px;">計算錯誤</strong>
+                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">{{ fibonacci_error }}</p>
+                    </div>
+                </div>
             </div>
             {% endif %}
             
-            {% if resistance_levels %}
-            <div class="table-section">
-                <h3>📊 潛在壓力位 (斐波那契擴展)</h3>
-                <table class="resistance-table">
-                    <thead>
-                        <tr>
-                            <th>擴展水平</th>
-                            <th>壓力價格</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for level, price in resistance_levels %}
-                        <tr>
-                            <td class="level">{{ "%.3f"|format(level) }}</td>
-                            <td class="price resistance-price">{{ "%.2f"|format(price) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            {% if support_levels or resistance_levels %}
+            <div class="results show">
+                <h3 style="margin-top: 20px; margin-bottom: 15px;">計算結果</h3>
+                
+                {% if support_levels %}
+                <div class="table-section">
+                    <h3>🛡️ 潛在支撐位 (斐波那契回撤)</h3>
+                    <table class="support-table">
+                        <thead>
+                            <tr>
+                                <th>回撤水平</th>
+                                <th>支撐價格</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for level, price in support_levels %}
+                            <tr>
+                                <td class="level">{{ "%.3f"|format(level) }}</td>
+                                <td class="price support-price">{{ "%.2f"|format(price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                
+                {% if resistance_levels %}
+                <div class="table-section">
+                    <h3>📊 潛在壓力位 (斐波那契擴展)</h3>
+                    <table class="resistance-table">
+                        <thead>
+                            <tr>
+                                <th>擴展水平</th>
+                                <th>壓力價格</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for level, price in resistance_levels %}
+                            <tr>
+                                <td class="level">{{ "%.3f"|format(level) }}</td>
+                                <td class="price resistance-price">{{ "%.2f"|format(price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                
+                <div class="info-box">
+                    <p><strong>高點價格:</strong> {{ "%.2f"|format(high_price) }}</p>
+                    <p><strong>低點價格:</strong> {{ "%.2f"|format(low_price) }}</p>
+                    <p><strong>價格區間:</strong> {{ "%.2f"|format(range_value) }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 股票訊號儀表板區塊 -->
+        <div class="section">
+            <h2>📈 股票訊號儀表板</h2>
+            
+            <form method="POST" action="/">
+                <input type="hidden" name="form_type" value="signal">
+                <div class="form-group">
+                    <label for="ticker">台股代碼:</label>
+                    <input type="text" 
+                           id="ticker" 
+                           name="ticker" 
+                           placeholder="例如: 2330, 2317, 2454 (無需輸入.TW)"
+                           required
+                           value="{{ request.form.get('ticker', '') if request.form and request.form.get('form_type') == 'signal' else '' }}">
+                    <div class="error" id="ticker_error"></div>
+                </div>
+                
+                <button type="submit" class="btn-signal">查詢股票訊號</button>
+            </form>
+            
+            {% if signal_error %}
+            <div class="error-message" style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #fee 0%, #fdd 100%); border-radius: 8px; border-left: 4px solid #e74c3c; box-shadow: 0 2px 8px rgba(231, 76, 60, 0.2);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">⚠️</span>
+                    <div>
+                        <strong style="color: #c0392b; font-size: 16px;">查詢失敗</strong>
+                        <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">{{ signal_error }}</p>
+                    </div>
+                </div>
             </div>
             {% endif %}
             
-            <div class="info-box">
-                <p><strong>高點價格:</strong> {{ "%.2f"|format(high_price) }}</p>
-                <p><strong>低點價格:</strong> {{ "%.2f"|format(low_price) }}</p>
-                <p><strong>價格區間:</strong> {{ "%.2f"|format(range_value) }}</p>
+            {% if stock_signals %}
+            <div class="signal-card">
+                {% if stock_signals.stock_name %}
+                <div class="stock-info">
+                    <h3>{{ stock_signals.stock_name }} ({{ stock_signals.ticker_display }})</h3>
+                </div>
+                {% endif %}
+                
+                <!-- 日線訊號區塊 -->
+                <div class="signal-group">
+                    <h4 class="signal-group-title">📊 日線訊號</h4>
+                    <div class="signal-item">
+                        <span class="signal-label">日 KD 金叉:</span>
+                        <span class="signal-value {% if stock_signals.daily_kd_golden_cross %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.daily_kd_golden_cross %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.daily_k is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日 K 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_k) }}</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="signal-label">日 D 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_d) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線價格站上 20MA:</span>
+                        <span class="signal-value {% if stock_signals.daily_price_above_ma20 %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.daily_price_above_ma20 %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.current_price is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線當前價格:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.current_price) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if stock_signals.daily_ma20 is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線 20 日均線:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_ma20) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- 週線訊號區塊 -->
+                <div class="signal-group">
+                    <h4 class="signal-group-title">📈 週線訊號</h4>
+                    <div class="signal-item">
+                        <span class="signal-label">週 KD 金叉:</span>
+                        <span class="signal-value {% if stock_signals.weekly_kd_golden_cross %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.weekly_kd_golden_cross %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.weekly_k is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週 K 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_k) }}</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="signal-label">週 D 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_d) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線價格站上 20MA:</span>
+                        <span class="signal-value {% if stock_signals.weekly_price_above_ma20 %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.weekly_price_above_ma20 %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.weekly_price is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線當前價格:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_price) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if stock_signals.weekly_ma20 is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線 20 週均線:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_ma20) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 </body>
 </html>
@@ -318,68 +596,49 @@ HTML_TEMPLATE = """
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    error = None
+    """主頁面，渲染包含兩個功能區塊的模板"""
+    from flask import request
+    
+    # 初始化變數
+    fibonacci_error = None
     support_levels = None
     resistance_levels = None
     high_price = None
     low_price = None
     range_value = None
+    signal_error = None
+    stock_signals = None
     
-    if request.method == 'POST':
-        try:
-            # 獲取並驗證輸入
-            high_price_str = request.form.get('high_price', '').strip()
-            low_price_str = request.form.get('low_price', '').strip()
-            
-            # 檢查是否為空
-            if not high_price_str or not low_price_str:
-                error = "請輸入高點價格和低點價格"
-            else:
-                # 嘗試轉換為浮點數
-                try:
-                    high_price = float(high_price_str)
-                    low_price = float(low_price_str)
-                except ValueError:
-                    error = "請輸入有效的數字"
-                
-                # 驗證價格範圍
-                if error is None:
-                    if high_price <= 0 or low_price <= 0:
-                        error = "價格必須大於 0"
-                    elif high_price <= low_price:
-                        error = "高點價格必須大於低點價格"
-                    else:
-                        # 計算價格區間
-                        range_value = high_price - low_price
-                        
-                        # 計算潛在支撐位（斐波那契回撤）
-                        # 公式: Level Price = High Price - (Range * Retracement Percentage)
-                        support_levels = []
-                        for level in FIBONACCI_RETRACEMENT_LEVELS:
-                            support_price = high_price - (range_value * level)
-                            support_levels.append((level, support_price))
-                        
-                        # 計算潛在壓力位（斐波那契擴展）
-                        # 公式: Level Price = High Price + (Range * (Extension - 1))
-                        resistance_levels = []
-                        for level in FIBONACCI_EXTENSION_LEVELS:
-                            resistance_price = high_price + (range_value * (level - 1))
-                            resistance_levels.append((level, resistance_price))
-        
-        except Exception as e:
-            error = f"計算過程中發生錯誤: {str(e)}"
+    # 處理斐波那契計算表單
+    if request.method == 'POST' and (request.form.get('form_type') == 'fibonacci' or (request.form.get('high_price') and request.form.get('low_price'))):
+        from fibonacci_routes import fibonacci_calculator
+        fibo_result = fibonacci_calculator()
+        fibonacci_error = fibo_result.get('fibonacci_error')
+        support_levels = fibo_result.get('support_levels')
+        resistance_levels = fibo_result.get('resistance_levels')
+        high_price = fibo_result.get('high_price')
+        low_price = fibo_result.get('low_price')
+        range_value = fibo_result.get('range_value')
+    
+    # 處理股票訊號表單
+    if request.method == 'POST' and request.form.get('form_type') == 'signal':
+        from stock_signals_routes import stock_signals
+        signals_result = stock_signals()
+        signal_error = signals_result.get('signal_error')
+        stock_signals = signals_result.get('stock_signals')
     
     return render_template_string(
         HTML_TEMPLATE,
-        error=error,
+        fibonacci_error=fibonacci_error,
         support_levels=support_levels,
         resistance_levels=resistance_levels,
         high_price=high_price,
         low_price=low_price,
-        range_value=range_value
+        range_value=range_value,
+        signal_error=signal_error,
+        stock_signals=stock_signals
     )
 
 
 if __name__ == '__main__':
     app.run(debug=False)
-
