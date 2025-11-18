@@ -2,8 +2,11 @@ from flask import Flask, request, render_template_string
 
 app = Flask(__name__)
 
-# 斐波那契擴展水平
-FIBONACCI_LEVELS = [1.382, 1.5, 1.618, 1.786, 2.0]
+# 斐波那契回撤水平（支撐位）
+FIBONACCI_RETRACEMENT_LEVELS = [0.236, 0.382, 0.500, 0.618]
+
+# 斐波那契擴展水平（壓力位）
+FIBONACCI_EXTENSION_LEVELS = [1.382, 1.5, 1.618, 1.786, 2.0]
 
 # HTML 模板
 HTML_TEMPLATE = """
@@ -12,7 +15,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>斐波那契擴展目標價計算器</title>
+    <title>斐波那契支撐位與壓力位計算器</title>
     <style>
         * {
             margin: 0;
@@ -35,7 +38,7 @@ HTML_TEMPLATE = """
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             padding: 40px;
-            max-width: 700px;
+            max-width: 900px;
             width: 100%;
         }
         
@@ -165,8 +168,34 @@ HTML_TEMPLATE = """
         
         .price {
             font-weight: 600;
-            color: #27ae60;
             font-size: 16px;
+        }
+        
+        .support-price {
+            color: #27ae60;
+        }
+        
+        .resistance-price {
+            color: #e74c3c;
+        }
+        
+        .table-section {
+            margin-bottom: 30px;
+        }
+        
+        .table-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .support-table thead {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+        }
+        
+        .resistance-table thead {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
         }
         
         .info-box {
@@ -190,7 +219,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>📈 斐波那契擴展目標價計算器</h1>
+        <h1>📈 斐波那契支撐位與壓力位計算器</h1>
         
         <form method="POST" id="fibonacciForm">
             <div class="form-group">
@@ -217,7 +246,7 @@ HTML_TEMPLATE = """
                 <div class="error" id="low_error"></div>
             </div>
             
-            <button type="submit">計算斐波那契擴展目標價</button>
+            <button type="submit">計算斐波那契支撐位與壓力位</button>
         </form>
         
         {% if error %}
@@ -226,25 +255,53 @@ HTML_TEMPLATE = """
         </div>
         {% endif %}
         
-        {% if results %}
+        {% if support_levels or resistance_levels %}
         <div class="results show">
             <h2>計算結果</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>擴展水平</th>
-                        <th>目標價格</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for level, price in results %}
-                    <tr>
-                        <td class="level">{{ level }}</td>
-                        <td class="price">{{ "%.2f"|format(price) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            
+            {% if support_levels %}
+            <div class="table-section">
+                <h3>🛡️ 潛在支撐位 (斐波那契回撤)</h3>
+                <table class="support-table">
+                    <thead>
+                        <tr>
+                            <th>回撤水平</th>
+                            <th>支撐價格</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for level, price in support_levels %}
+                        <tr>
+                            <td class="level">{{ "%.3f"|format(level) }}</td>
+                            <td class="price support-price">{{ "%.2f"|format(price) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            
+            {% if resistance_levels %}
+            <div class="table-section">
+                <h3>📊 潛在壓力位 (斐波那契擴展)</h3>
+                <table class="resistance-table">
+                    <thead>
+                        <tr>
+                            <th>擴展水平</th>
+                            <th>壓力價格</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for level, price in resistance_levels %}
+                        <tr>
+                            <td class="level">{{ "%.3f"|format(level) }}</td>
+                            <td class="price resistance-price">{{ "%.2f"|format(price) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
             
             <div class="info-box">
                 <p><strong>高點價格:</strong> {{ "%.2f"|format(high_price) }}</p>
@@ -262,7 +319,8 @@ HTML_TEMPLATE = """
 @app.route('/', methods=['GET', 'POST'])
 def index():
     error = None
-    results = None
+    support_levels = None
+    resistance_levels = None
     high_price = None
     low_price = None
     range_value = None
@@ -294,12 +352,19 @@ def index():
                         # 計算價格區間
                         range_value = high_price - low_price
                         
-                        # 計算各斐波那契擴展水平
-                        results = []
-                        for level in FIBONACCI_LEVELS:
-                            # 公式: Level Price = High Price + (Range * (Extension - 1))
-                            target_price = high_price + (range_value * (level - 1))
-                            results.append((level, target_price))
+                        # 計算潛在支撐位（斐波那契回撤）
+                        # 公式: Level Price = High Price - (Range * Retracement Percentage)
+                        support_levels = []
+                        for level in FIBONACCI_RETRACEMENT_LEVELS:
+                            support_price = high_price - (range_value * level)
+                            support_levels.append((level, support_price))
+                        
+                        # 計算潛在壓力位（斐波那契擴展）
+                        # 公式: Level Price = High Price + (Range * (Extension - 1))
+                        resistance_levels = []
+                        for level in FIBONACCI_EXTENSION_LEVELS:
+                            resistance_price = high_price + (range_value * (level - 1))
+                            resistance_levels.append((level, resistance_price))
         
         except Exception as e:
             error = f"計算過程中發生錯誤: {str(e)}"
@@ -307,7 +372,8 @@ def index():
     return render_template_string(
         HTML_TEMPLATE,
         error=error,
-        results=results,
+        support_levels=support_levels,
+        resistance_levels=resistance_levels,
         high_price=high_price,
         low_price=low_price,
         range_value=range_value
