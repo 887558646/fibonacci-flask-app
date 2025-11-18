@@ -3,8 +3,14 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 import requests
+import warnings
+import logging
 
 signals_bp = Blueprint('signals', __name__)
+
+# 抑制 yfinance 的警告訊息
+warnings.filterwarnings('ignore')
+logging.getLogger('yfinance').setLevel(logging.ERROR)
 
 # 設置 requests 的 User-Agent，避免被網站阻擋
 # yfinance 內部使用 requests，我們會在創建 Ticker 時傳入自定義 session
@@ -66,32 +72,38 @@ def try_get_stock_data(ticker_with_suffix):
             try:
                 # 方法1: 使用 Ticker().history() with period
                 try:
-                    daily_data = stock.history(period="6mo")
-                    if daily_data is not None and not daily_data.empty:
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        daily_data = stock.history(period="6mo")
+                        if daily_data is not None and not daily_data.empty:
+                            break
                 except:
                     pass
                 
                 # 方法2: 使用明確的日期範圍
                 try:
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=180)
-                    daily_data = stock.history(start=start_date, end=end_date)
-                    if daily_data is not None and not daily_data.empty:
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        end_date = datetime.now()
+                        start_date = end_date - timedelta(days=180)
+                        daily_data = stock.history(start=start_date, end=end_date)
+                        if daily_data is not None and not daily_data.empty:
+                            break
                 except:
                     pass
                 
                 # 方法3: 使用 yfinance.download() 作為備用
                 try:
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=180)
-                    daily_data = yf.download(ticker_with_suffix, start=start_date, end=end_date, progress=False, session=session)
-                    if daily_data is not None and not daily_data.empty:
-                        # download 返回的數據格式可能不同，需要調整
-                        if isinstance(daily_data.columns, pd.MultiIndex):
-                            daily_data = daily_data.droplevel(0, axis=1)
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        end_date = datetime.now()
+                        start_date = end_date - timedelta(days=180)
+                        daily_data = yf.download(ticker_with_suffix, start=start_date, end=end_date, progress=False, session=session, quiet=True)
+                        if daily_data is not None and not daily_data.empty:
+                            # download 返回的數據格式可能不同，需要調整
+                            if isinstance(daily_data.columns, pd.MultiIndex):
+                                daily_data = daily_data.droplevel(0, axis=1)
+                            break
                 except:
                     pass
                 
@@ -118,32 +130,38 @@ def try_get_stock_data(ticker_with_suffix):
             try:
                 # 方法1: 使用 Ticker().history() with period
                 try:
-                    weekly_data = stock.history(period="2y", interval="1wk")
-                    if weekly_data is not None and not weekly_data.empty:
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        weekly_data = stock.history(period="2y", interval="1wk")
+                        if weekly_data is not None and not weekly_data.empty:
+                            break
                 except:
                     pass
                 
                 # 方法2: 使用明確的日期範圍
                 try:
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=730)  # 2 年
-                    weekly_data = stock.history(start=start_date, end=end_date, interval="1wk")
-                    if weekly_data is not None and not weekly_data.empty:
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        end_date = datetime.now()
+                        start_date = end_date - timedelta(days=730)  # 2 年
+                        weekly_data = stock.history(start=start_date, end=end_date, interval="1wk")
+                        if weekly_data is not None and not weekly_data.empty:
+                            break
                 except:
                     pass
                 
                 # 方法3: 使用 yfinance.download() 作為備用
                 try:
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=730)
-                    weekly_data = yf.download(ticker_with_suffix, start=start_date, end=end_date, interval="1wk", progress=False, session=session)
-                    if weekly_data is not None and not weekly_data.empty:
-                        # download 返回的數據格式可能不同，需要調整
-                        if isinstance(weekly_data.columns, pd.MultiIndex):
-                            weekly_data = weekly_data.droplevel(0, axis=1)
-                        break
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        end_date = datetime.now()
+                        start_date = end_date - timedelta(days=730)
+                        weekly_data = yf.download(ticker_with_suffix, start=start_date, end=end_date, interval="1wk", progress=False, session=session, quiet=True)
+                        if weekly_data is not None and not weekly_data.empty:
+                            # download 返回的數據格式可能不同，需要調整
+                            if isinstance(weekly_data.columns, pd.MultiIndex):
+                                weekly_data = weekly_data.droplevel(0, axis=1)
+                            break
                 except:
                     pass
                 
