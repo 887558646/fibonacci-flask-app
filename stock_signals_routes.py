@@ -6,12 +6,26 @@ import warnings
 import logging
 from datetime import datetime, timedelta
 import time
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 signals_bp = Blueprint('signals', __name__)
 
 # 抑制警告訊息
 warnings.filterwarnings('ignore')
 logging.getLogger('yfinance').setLevel(logging.ERROR)
+
+# 配置日誌
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# 嘗試導入 yfinance
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    logger.warning("yfinance 未安裝，將僅使用台灣證交所 API")
 
 
 def calculate_kdj(high, low, close, period=9, k_period=3, d_period=3):
@@ -43,7 +57,7 @@ def calculate_kdj(high, low, close, period=9, k_period=3, d_period=3):
 
 def get_twse_stock_data(stock_no, days=180):
     """
-    從台灣證交所 API 獲取股票數據
+    從台灣證交所 API 獲取股票數據（改進版：支援重試、更長超時、詳細日誌）
     
     參數:
         stock_no: 股票代碼（4位數字，例如 "2330"）
@@ -52,11 +66,28 @@ def get_twse_stock_data(stock_no, days=180):
     返回:
         pandas DataFrame 包含 Open, High, Low, Close, Volume 欄位
     """
+    # 配置重試策略
+    try:
+        retry_strategy = Retry(
+            total=3,  # 總共重試 3 次
+            backoff_factor=1,  # 重試間隔：1秒、2秒、4秒
+            status_forcelist=[429, 500, 502, 503, 504],  # 需要重試的 HTTP 狀態碼
+            allowed_methods=["GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+    except Exception:
+        # 如果 urllib3 版本較舊，使用簡單的 session
+        adapter = HTTPAdapter()
+    
     session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json',
         'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://www.twse.com.tw/',
     })
     
     all_data = []
@@ -68,68 +99,111 @@ def get_twse_stock_data(stock_no, days=180):
     current_month = start_date.replace(day=1)
     end_month = end_date.replace(day=1)
     
+    total_months = (end_month.year - current_month.year) * 12 + (end_month.month - current_month.month) + 1
+    logger.info(f"開始獲取股票 {stock_no} 的數據，共需獲取 {total_months} 個月的數據")
+    
+    month_count = 0
     while current_month <= end_month:
+        month_count += 1
         # 格式化日期為 YYYYMMDD（取該月第一天）
         date_str = current_month.strftime('%Y%m%d')
         
-        try:
-            url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
-            params = {
-                'response': 'json',
-                'date': date_str,
-                'stockNo': stock_no
-            }
-            
-            response = session.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            # 檢查 API 回應
-            if data.get('stat') == 'OK' and 'data' in data:
-                # 解析數據
-                for row in data['data']:
-                    try:
-                        # 日期格式：民國年/MM/DD，需要轉換為西元年
-                        date_str = row[0].strip()
-                        date_parts = date_str.split('/')
-                        if len(date_parts) == 3:
-                            roc_year = int(date_parts[0])
-                            year = roc_year + 1911  # 轉換為西元年
-                            month = int(date_parts[1])
-                            day = int(date_parts[2])
-                            
-                            date = datetime(year, month, day)
-                            if start_date <= date <= end_date:
-                                # 台灣證交所 API 數據格式：
-                                # [0]日期, [1]成交股數, [2]成交金額, [3]開盤, [4]最高, [5]最低, [6]收盤, [7]漲跌價差, [8]成交筆數
-                                open_price = float(str(row[3]).replace(',', '').replace('--', '0'))
-                                high_price = float(str(row[4]).replace(',', '').replace('--', '0'))
-                                low_price = float(str(row[5]).replace(',', '').replace('--', '0'))
-                                close_price = float(str(row[6]).replace(',', '').replace('--', '0'))
+        max_retries = 3
+        retry_count = 0
+        success = False
+        
+        while retry_count < max_retries and not success:
+            try:
+                url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+                params = {
+                    'response': 'json',
+                    'date': date_str,
+                    'stockNo': stock_no
+                }
+                
+                # 增加超時時間到 30 秒，適應 Render 的網路環境
+                response = session.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                # 檢查 API 回應
+                if data.get('stat') == 'OK' and 'data' in data:
+                    # 解析數據
+                    row_count = 0
+                    for row in data['data']:
+                        try:
+                            # 日期格式：民國年/MM/DD，需要轉換為西元年
+                            date_str_row = row[0].strip()
+                            date_parts = date_str_row.split('/')
+                            if len(date_parts) == 3:
+                                roc_year = int(date_parts[0])
+                                year = roc_year + 1911  # 轉換為西元年
+                                month = int(date_parts[1])
+                                day = int(date_parts[2])
                                 
-                                # 成交量（成交股數）
-                                volume_str = str(row[1]).replace(',', '').replace('--', '0')
-                                volume = int(float(volume_str)) if volume_str else 0
-                                
-                                all_data.append({
-                                    'Date': date,
-                                    'Open': open_price,
-                                    'High': high_price,
-                                    'Low': low_price,
-                                    'Close': close_price,
-                                    'Volume': volume
-                                })
-                    except (ValueError, IndexError, TypeError) as e:
-                        # 跳過無法解析的數據
-                        continue
-            
-            # 避免請求過於頻繁
-            time.sleep(0.5)
-            
-        except Exception as e:
-            # 如果某個月獲取失敗，繼續下一個月
-            pass
+                                date = datetime(year, month, day)
+                                if start_date <= date <= end_date:
+                                    # 台灣證交所 API 數據格式：
+                                    # [0]日期, [1]成交股數, [2]成交金額, [3]開盤, [4]最高, [5]最低, [6]收盤, [7]漲跌價差, [8]成交筆數
+                                    open_price = float(str(row[3]).replace(',', '').replace('--', '0'))
+                                    high_price = float(str(row[4]).replace(',', '').replace('--', '0'))
+                                    low_price = float(str(row[5]).replace(',', '').replace('--', '0'))
+                                    close_price = float(str(row[6]).replace(',', '').replace('--', '0'))
+                                    
+                                    # 成交量（成交股數）
+                                    volume_str = str(row[1]).replace(',', '').replace('--', '0')
+                                    volume = int(float(volume_str)) if volume_str else 0
+                                    
+                                    all_data.append({
+                                        'Date': date,
+                                        'Open': open_price,
+                                        'High': high_price,
+                                        'Low': low_price,
+                                        'Close': close_price,
+                                        'Volume': volume
+                                    })
+                                    row_count += 1
+                        except (ValueError, IndexError, TypeError) as e:
+                            # 跳過無法解析的數據
+                            continue
+                    
+                    if row_count > 0:
+                        logger.info(f"成功獲取 {current_month.strftime('%Y-%m')} 的數據，共 {row_count} 筆")
+                        success = True
+                    else:
+                        logger.warning(f"{current_month.strftime('%Y-%m')} 的數據為空")
+                        success = True  # 即使沒有數據，也算成功（可能是非交易日）
+                elif data.get('stat') != 'OK':
+                    error_msg = data.get('message', 'Unknown error')
+                    logger.warning(f"API 返回錯誤狀態: {error_msg} (月份: {current_month.strftime('%Y-%m')})")
+                    if '很抱歉' in str(error_msg) or '沒有符合條件的資料' in str(error_msg):
+                        # 該月份沒有數據，視為成功
+                        success = True
+                    else:
+                        retry_count += 1
+                else:
+                    logger.warning(f"API 回應格式異常 (月份: {current_month.strftime('%Y-%m')})")
+                    retry_count += 1
+                
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                logger.warning(f"請求超時 (月份: {current_month.strftime('%Y-%m')}, 重試 {retry_count}/{max_retries})")
+                if retry_count < max_retries:
+                    time.sleep(2 ** retry_count)  # 指數退避
+            except requests.exceptions.RequestException as e:
+                retry_count += 1
+                logger.warning(f"請求失敗: {str(e)} (月份: {current_month.strftime('%Y-%m')}, 重試 {retry_count}/{max_retries})")
+                if retry_count < max_retries:
+                    time.sleep(2 ** retry_count)  # 指數退避
+            except Exception as e:
+                logger.error(f"處理數據時發生錯誤: {str(e)} (月份: {current_month.strftime('%Y-%m')})")
+                retry_count += 1
+                if retry_count < max_retries:
+                    time.sleep(2 ** retry_count)
+        
+        # 避免請求過於頻繁（增加延遲時間）
+        time.sleep(1.0)  # 增加到 1 秒，避免觸發 API 頻率限制
         
         # 移到下一個月
         if current_month.month == 12:
@@ -138,6 +212,7 @@ def get_twse_stock_data(stock_no, days=180):
             current_month = current_month.replace(month=current_month.month + 1)
     
     if not all_data:
+        logger.error(f"無法獲取股票 {stock_no} 的任何數據")
         return None
     
     # 轉換為 DataFrame
@@ -148,15 +223,81 @@ def get_twse_stock_data(stock_no, days=180):
     # 確保欄位名稱與 yfinance 格式一致
     df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
     
+    logger.info(f"成功獲取股票 {stock_no} 的數據，共 {len(df)} 筆")
+    
     return df
+
+
+def try_get_stock_data_yfinance(ticker):
+    """
+    使用 yfinance 獲取股票數據（第一順位）
+    返回: (daily_data, weekly_data, stock_info, error_msg) 或 (None, None, None, error_msg) 如果失敗
+    """
+    if not YFINANCE_AVAILABLE:
+        return None, None, None, "yfinance 未安裝"
+    
+    try:
+        # 嘗試 .TW 和 .TWO 兩種格式
+        tickers_to_try = [f"{ticker}.TW", f"{ticker}.TWO"]
+        
+        for ticker_with_suffix in tickers_to_try:
+            try:
+                logger.info(f"嘗試使用 yfinance 獲取 {ticker_with_suffix} 的數據")
+                stock = yf.Ticker(ticker_with_suffix)
+                
+                # 獲取日線數據（最近 180 天）
+                daily_data = stock.history(period="6mo")
+                
+                if daily_data is None or daily_data.empty:
+                    logger.warning(f"yfinance 無法獲取 {ticker_with_suffix} 的日線數據")
+                    continue
+                
+                # 獲取週線數據（最近 2 年）
+                weekly_data_full = stock.history(period="2y")
+                
+                if weekly_data_full is None or weekly_data_full.empty:
+                    logger.warning(f"yfinance 無法獲取 {ticker_with_suffix} 的週線數據")
+                    continue
+                
+                # 將日線數據轉換為週線數據
+                weekly_data = weekly_data_full.resample('W').agg({
+                    'Open': 'first',
+                    'High': 'max',
+                    'Low': 'min',
+                    'Close': 'last',
+                    'Volume': 'sum'
+                }).dropna()
+                
+                # 獲取股票資訊
+                stock_info = {}
+                try:
+                    info = stock.info
+                    if info:
+                        stock_info['longName'] = info.get('longName', info.get('shortName', ticker))
+                except:
+                    stock_info['longName'] = ticker
+                
+                logger.info(f"成功使用 yfinance 獲取 {ticker_with_suffix} 的數據")
+                return daily_data, weekly_data, stock_info, None
+                
+            except Exception as e:
+                logger.warning(f"yfinance 獲取 {ticker_with_suffix} 失敗: {str(e)}")
+                continue
+        
+        return None, None, None, f"yfinance 無法獲取股票代碼 {ticker} 的數據（已嘗試 .TW 和 .TWO）"
+    
+    except Exception as e:
+        return None, None, None, f"使用 yfinance 獲取股票數據時發生錯誤: {str(e)}"
 
 
 def try_get_stock_data_twse(stock_no):
     """
-    使用台灣證交所 API 獲取股票數據
+    使用台灣證交所 API 獲取股票數據（第二順位）
     返回: (daily_data, weekly_data, stock_info, error_msg) 或 (None, None, None, error_msg) 如果失敗
     """
     try:
+        logger.info(f"嘗試使用台灣證交所 API 獲取 {stock_no} 的數據")
+        
         # 獲取日線數據（最近 180 天）
         daily_data = get_twse_stock_data(stock_no, days=180)
         
@@ -188,7 +329,7 @@ def try_get_stock_data_twse(stock_no):
                 'date': datetime.now().strftime('%Y%m%d'),
                 'stockNo': stock_no
             }
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 if data.get('stat') == 'OK' and 'title' in data:
@@ -201,16 +342,41 @@ def try_get_stock_data_twse(stock_no):
         except:
             pass
         
+        logger.info(f"成功使用台灣證交所 API 獲取 {stock_no} 的數據")
         return daily_data, weekly_data, stock_info, None
     
     except Exception as e:
         return None, None, None, f"獲取股票數據時發生錯誤: {str(e)}"
 
 
+def get_stock_data(ticker):
+    """
+    獲取股票數據：優先使用 yfinance，失敗後使用台灣證交所 API
+    返回: (daily_data, weekly_data, stock_info, error_msg, data_source)
+    """
+    # 先嘗試 yfinance（第一順位）
+    daily_data, weekly_data, stock_info, error_msg = try_get_stock_data_yfinance(ticker)
+    
+    if daily_data is not None and weekly_data is not None:
+        logger.info(f"使用 yfinance 成功獲取 {ticker} 的數據")
+        return daily_data, weekly_data, stock_info, None, "yfinance"
+    
+    # yfinance 失敗，嘗試台灣證交所 API（第二順位）
+    logger.info(f"yfinance 失敗，嘗試使用台灣證交所 API 獲取 {ticker} 的數據")
+    daily_data, weekly_data, stock_info, error_msg = try_get_stock_data_twse(ticker)
+    
+    if daily_data is not None and weekly_data is not None:
+        logger.info(f"使用台灣證交所 API 成功獲取 {ticker} 的數據")
+        return daily_data, weekly_data, stock_info, None, "TWSE"
+    
+    # 兩個數據源都失敗
+    return None, None, None, error_msg or "所有數據源都無法獲取數據", None
+
+
 def get_stock_signals(ticker):
     """
     獲取股票訊號：日 KD 金叉、週 KD 金叉、站上 20MA
-    使用台灣證交所 API 獲取數據
+    優先使用 yfinance 獲取數據，失敗後使用台灣證交所 API
     
     參數:
         ticker: 股票代碼（純數字，例如 "2330"）
@@ -226,13 +392,14 @@ def get_stock_signals(ticker):
             "error": f"股票代碼格式錯誤。請輸入4位數字，例如：2330、2317、2454"
         }
     
-    # 使用台灣證交所 API 獲取數據
-    daily_data, weekly_data, stock_info, error_msg = try_get_stock_data_twse(ticker_clean)
+    # 獲取股票數據：優先使用 yfinance，失敗後使用台灣證交所 API
+    daily_data, weekly_data, stock_info, error_msg, data_source = get_stock_data(ticker_clean)
     
     if daily_data is None or weekly_data is None:
         error_detail = error_msg if error_msg else "未知錯誤"
+        source_info = f"（已嘗試 yfinance 和台灣證交所 API）" if data_source is None else f"（使用 {data_source}）"
         return {
-            "error": f"無法獲取股票代碼 {ticker_clean} 的數據。\n錯誤詳情: {error_detail}\n\n請確認：\n1. 股票代碼是否正確（4位數字）\n2. 該股票是否為台股上市/上櫃股票\n3. 該股票是否仍在交易中"
+            "error": f"無法獲取股票代碼 {ticker_clean} 的數據{source_info}。\n錯誤詳情: {error_detail}\n\n請確認：\n1. 股票代碼是否正確（4位數字）\n2. 該股票是否為台股上市/上櫃股票\n3. 該股票是否仍在交易中"
         }
     
     try:
