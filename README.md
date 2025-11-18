@@ -105,6 +105,25 @@ fibonacci-flask-app/
    git push heroku main
    ```
 
+### Render 部署
+
+1. 登入 [Render](https://render.com) 並連接您的 GitHub 帳號
+2. 點擊「New +」→「Web Service」
+3. 選擇您的 GitHub 倉庫 `fibonacci-flask-app`
+4. 配置以下設置：
+   - **Name**: `fibonacci-flask-app`（或您喜歡的名稱）
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app`
+   - **Plan**: 選擇免費或付費方案
+5. 點擊「Create Web Service」
+6. Render 會自動從 `render.yaml` 讀取配置（如果存在）
+
+**重要提示**：
+- 確保 Start Command 設置為：`gunicorn app:app`
+- 如果使用 `render.yaml`，Render 會自動使用其中的配置
+- 部署完成後，您會獲得一個 `*.onrender.com` 的網址
+
 ### 其他平台
 
 此應用程式可以部署到任何支援 Python 的雲端平台，如：
@@ -113,7 +132,6 @@ fibonacci-flask-app/
 - Azure App Service
 - DigitalOcean App Platform
 - Railway
-- Render
 
 ## 📄 授權
 
