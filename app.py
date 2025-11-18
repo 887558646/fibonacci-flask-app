@@ -1,5 +1,4 @@
 from flask import Flask, render_template_string
-from fibonacci_routes import fibo_bp
 from stock_signals_routes import signals_bp
 
 app = Flask(__name__)
@@ -611,8 +610,11 @@ def index():
     
     # 處理斐波那契計算表單
     if request.method == 'POST' and (request.form.get('form_type') == 'fibonacci' or (request.form.get('high_price') and request.form.get('low_price'))):
-        from fibonacci_routes import fibonacci_calculator
-        fibo_result = fibonacci_calculator()
+        try:
+            from fibonacci_routes import fibonacci_calculator
+            fibo_result = fibonacci_calculator()
+        except Exception as e:
+            fibo_result = {'fibonacci_error': f'導入錯誤: {str(e)}'}
         fibonacci_error = fibo_result.get('fibonacci_error')
         support_levels = fibo_result.get('support_levels')
         resistance_levels = fibo_result.get('resistance_levels')
@@ -622,8 +624,11 @@ def index():
     
     # 處理股票訊號表單
     if request.method == 'POST' and request.form.get('form_type') == 'signal':
-        from stock_signals_routes import stock_signals
-        signals_result = stock_signals()
+        try:
+            from stock_signals_routes import stock_signals
+            signals_result = stock_signals()
+        except Exception as e:
+            signals_result = {'signal_error': f'導入錯誤: {str(e)}'}
         signal_error = signals_result.get('signal_error')
         stock_signals = signals_result.get('stock_signals')
     
