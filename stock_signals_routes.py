@@ -2,8 +2,12 @@ from flask import Blueprint, request
 import yfinance as yf
 import numpy as np
 import pandas as pd
+import requests
 
 signals_bp = Blueprint('signals', __name__)
+
+# 設置 requests 的 User-Agent，避免被網站阻擋
+# yfinance 內部使用 requests，我們會在創建 Ticker 時傳入自定義 session
 
 
 def calculate_kdj(high, low, close, period=9, k_period=3, d_period=3):
@@ -36,31 +40,64 @@ def calculate_kdj(high, low, close, period=9, k_period=3, d_period=3):
 def try_get_stock_data(ticker_with_suffix):
     """
     嘗試獲取股票數據
-    返回: (daily_data, weekly_data, stock_info) 或 (None, None, None) 如果失敗
+    返回: (daily_data, weekly_data, stock_info, error_msg) 或 (None, None, None, error_msg) 如果失敗
     """
+    import time
+    
     try:
-        stock = yf.Ticker(ticker_with_suffix)
+        # 設置超時和重試機制
+        # 使用自定義 session 設置 User-Agent
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        })
         
-        # 獲取日線數據（最近 100 天）
-        daily_data = stock.history(period="100d")
-        if daily_data.empty:
-            return None, None, None
+        stock = yf.Ticker(ticker_with_suffix, session=session)
         
-        # 獲取週線數據（最近 52 週）
-        weekly_data = stock.history(period="1y", interval="1wk")
-        if weekly_data.empty:
-            return None, None, None
+        # 獲取日線數據（最近 100 天），添加重試機制
+        daily_data = None
+        for attempt in range(3):  # 最多重試 3 次
+            try:
+                daily_data = stock.history(period="100d")
+                if daily_data is not None and not daily_data.empty:
+                    break
+                if attempt < 2:  # 不是最後一次嘗試
+                    time.sleep(2)  # 等待 2 秒後重試
+            except Exception as e:
+                if attempt == 2:  # 最後一次嘗試
+                    return None, None, None, f"獲取日線數據失敗: {str(e)}"
+                time.sleep(2)  # 等待 2 秒後重試
         
-        # 嘗試獲取股票資訊
+        if daily_data is None or daily_data.empty:
+            return None, None, None, "無法獲取日線數據（數據為空或超時）"
+        
+        # 獲取週線數據（最近 52 週），添加重試機制
+        weekly_data = None
+        for attempt in range(3):  # 最多重試 3 次
+            try:
+                weekly_data = stock.history(period="1y", interval="1wk")
+                if weekly_data is not None and not weekly_data.empty:
+                    break
+                if attempt < 2:  # 不是最後一次嘗試
+                    time.sleep(2)  # 等待 2 秒後重試
+            except Exception as e:
+                if attempt == 2:  # 最後一次嘗試
+                    return None, None, None, f"獲取週線數據失敗: {str(e)}"
+                time.sleep(2)  # 等待 2 秒後重試
+        
+        if weekly_data is None or weekly_data.empty:
+            return None, None, None, "無法獲取週線數據（數據為空）"
+        
+        # 嘗試獲取股票資訊（非必需，失敗不影響）
         try:
             info = stock.info
         except:
             info = {}
         
-        return daily_data, weekly_data, info
+        return daily_data, weekly_data, info, None
     
-    except Exception:
-        return None, None, None
+    except Exception as e:
+        return None, None, None, f"獲取股票數據時發生錯誤: {str(e)}"
 
 
 def get_stock_signals(ticker):
@@ -85,17 +122,21 @@ def get_stock_signals(ticker):
     weekly_data = None
     stock_info = None
     final_ticker = None
+    last_error = None
     
     for ticker_variant in ticker_variants:
-        daily_data, weekly_data, stock_info = try_get_stock_data(ticker_variant)
+        daily_data, weekly_data, stock_info, error_msg = try_get_stock_data(ticker_variant)
         if daily_data is not None and weekly_data is not None:
             final_ticker = ticker_variant
             break
+        else:
+            last_error = error_msg  # 記錄最後的錯誤訊息
     
-    # 如果所有嘗試都失敗，返回錯誤
+    # 如果所有嘗試都失敗，返回詳細錯誤
     if daily_data is None or weekly_data is None:
+        error_detail = last_error if last_error else "未知錯誤"
         return {
-            "error": f"無法獲取股票代碼 {ticker_clean} 的數據。請確認代碼是否正確，或該股票是否為台股上市/上櫃股票。"
+            "error": f"無法獲取股票代碼 {ticker_clean} 的數據。\n錯誤詳情: {error_detail}\n\n請確認：\n1. 股票代碼是否正確\n2. 該股票是否為台股上市/上櫃股票\n3. 網路連線是否正常"
         }
     
     try:
