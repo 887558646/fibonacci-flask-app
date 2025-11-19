@@ -584,6 +584,87 @@ HTML_TEMPLATE = """
                     </div>
                     {% endif %}
                 </div>
+                
+                <!-- 多重關鍵支撐與壓力位區塊 -->
+                {% if stock_signals.r1 is not none or stock_signals.r2 is not none or stock_signals.r3 is not none or stock_signals.s1 is not none or stock_signals.s2 is not none or stock_signals.s3 is not none %}
+                <div class="signal-group" style="margin-top: 25px;">
+                    <h4 class="signal-group-title">🎯 多重關鍵支撐與壓力位（分形指標）</h4>
+                    
+                    {% if stock_signals.support_resistance_error %}
+                    <div class="error-message" style="margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #fee 0%, #fdd 100%); border-radius: 8px; border-left: 4px solid #e74c3c;">
+                        <p style="margin: 0; color: #555; font-size: 14px;">{{ stock_signals.support_resistance_error }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div style="margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                    <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">價位類型</th>
+                                    <th style="padding: 12px; text-align: right; font-weight: 600; font-size: 14px;">價格</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if stock_signals.r3 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R3（最遠）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #c0392b;">{{ "%.2f"|format(stock_signals.r3) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.r2 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R2</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #e74c3c;">{{ "%.2f"|format(stock_signals.r2) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.r1 is not none %}
+                                <tr style="border-bottom: 2px solid #667eea; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R1（最近）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #e74c3c;">{{ "%.2f"|format(stock_signals.r1) }}</td>
+                                </tr>
+                                {% endif %}
+                                
+                                <!-- 當前價格分隔線 -->
+                                {% if stock_signals.current_price is not none %}
+                                <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-top: 2px solid #667eea; border-bottom: 2px solid #667eea;">
+                                    <td style="padding: 14px; text-align: center; font-weight: 700; font-size: 16px; color: white;" colspan="2">
+                                        ═══ 當前價格：{{ "%.2f"|format(stock_signals.current_price) }} ═══
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if stock_signals.s1 is not none %}
+                                <tr style="border-top: 2px solid #27ae60; background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S1（最近）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #27ae60;">{{ "%.2f"|format(stock_signals.s1) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.s2 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S2</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #27ae60;">{{ "%.2f"|format(stock_signals.s2) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.s3 is not none %}
+                                <tr style="background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S3（最遠）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #2ecc71;">{{ "%.2f"|format(stock_signals.s3) }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="info-box" style="margin-top: 15px;">
+                        <p style="margin: 5px 0; color: #555; font-size: 13px;"><strong>說明：</strong></p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>分形指標 (Fractals)</strong>：參考 TradingView 的分形指標，識別高於/低於左右各5根K棒的關鍵價位</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>多重壓力位 (R1-R3)</strong>：從過去2年數據中找出 > 當前價格的分形高點，由近到遠排序，取前3個</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>多重支撐位 (S1-S3)</strong>：從過去2年數據中找出 < 當前價格的分形低點，由近到遠排序，取前3個</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>價格修正</strong>：所有價格已根據台股升降單位 (Tick Size) 進行修正（壓力位向下取整，支撐位向上取整）</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>過濾重複</strong>：自動過濾重複的價格值，確保每個價位都是唯一的</p>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </div>

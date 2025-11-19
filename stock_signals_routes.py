@@ -6,6 +6,7 @@ import warnings
 import logging
 from datetime import datetime, timedelta
 import time
+import math
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -26,6 +27,61 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
     logger.warning("yfinance 未安裝，將僅使用台灣證交所 API")
+
+
+def get_tick_size(price):
+    """
+    根據價格獲取台股 Tick Size
+    規則：
+    - < 10: 0.01
+    - 10-50: 0.05
+    - 50-100: 0.10
+    - 100-500: 0.50
+    - 500-1000: 1.00
+    - >= 1000: 5.00
+    """
+    if price < 10:
+        return 0.01
+    elif price < 50:
+        return 0.05
+    elif price < 100:
+        return 0.10
+    elif price < 500:
+        return 0.50
+    elif price < 1000:
+        return 1.00
+    else:
+        return 5.00
+
+
+def adjust_to_tick(price, direction):
+    """
+    將價格調整到符合台股 Tick Size 規則的核心修正函數
+    
+    參數:
+        price: 原始價格
+        direction: 'resistance' (壓力/擴展) 或 'support' (支撐/回撤)
+    
+    規則:
+        - direction='resistance' (壓力/擴展): 向下取整 (floor)，取最接近且小於或等於 price 的 Tick 價格
+        - direction='support' (支撐/回撤): 向上取整 (ceil)，取最接近且大於或等於 price 的 Tick 價格
+    
+    返回:
+        調整後的價格（符合台股 Tick Size 規則）
+    """
+    tick_size = get_tick_size(price)
+    
+    if direction == 'resistance':
+        # 壓力/擴展：向下取整 (floor)，取最接近且小於或等於 price 的 Tick 價格
+        adjusted_price = math.floor(price / tick_size) * tick_size
+    elif direction == 'support':
+        # 支撐/回撤：向上取整 (ceil)，取最接近且大於或等於 price 的 Tick 價格
+        adjusted_price = math.ceil(price / tick_size) * tick_size
+    else:
+        # 預設行為：不調整
+        adjusted_price = price
+    
+    return round(adjusted_price, 2)
 
 
 def calculate_kdj(high, low, close, period=9, k_period=3, d_period=3):
@@ -373,6 +429,233 @@ def get_stock_data(ticker):
     return None, None, None, error_msg or "所有數據源都無法獲取數據", None
 
 
+def get_stock_data_2years(ticker):
+    """
+    獲取股票過去2年的歷史數據（用於計算支撐壓力位）
+    返回: (daily_data_2y, stock_info, error_msg, data_source) 或 (None, None, error_msg, None) 如果失敗
+    """
+    if not YFINANCE_AVAILABLE:
+        # 使用台灣證交所 API 獲取2年數據
+        try:
+            logger.info(f"嘗試使用台灣證交所 API 獲取 {ticker} 的2年數據")
+            daily_data_2y = get_twse_stock_data(ticker, days=730)
+            
+            if daily_data_2y is None or daily_data_2y.empty:
+                return None, None, f"無法從台灣證交所獲取股票代碼 {ticker} 的2年數據", None
+            
+            # 獲取股票名稱
+            stock_info = {}
+            try:
+                url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+                params = {
+                    'response': 'json',
+                    'date': datetime.now().strftime('%Y%m%d'),
+                    'stockNo': ticker
+                }
+                response = requests.get(url, params=params, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('stat') == 'OK' and 'title' in data:
+                        title = data['title']
+                        parts = title.split()
+                        if len(parts) >= 2:
+                            stock_info['longName'] = parts[1]
+            except:
+                pass
+            
+            logger.info(f"成功使用台灣證交所 API 獲取 {ticker} 的2年數據")
+            return daily_data_2y, stock_info, None, "TWSE"
+        except Exception as e:
+            return None, None, f"獲取2年數據時發生錯誤: {str(e)}", None
+    
+    # 優先使用 yfinance
+    try:
+        tickers_to_try = [f"{ticker}.TW", f"{ticker}.TWO"]
+        
+        for ticker_with_suffix in tickers_to_try:
+            try:
+                logger.info(f"嘗試使用 yfinance 獲取 {ticker_with_suffix} 的2年數據")
+                stock = yf.Ticker(ticker_with_suffix)
+                
+                # 獲取過去2年的日線數據
+                daily_data_2y = stock.history(period="2y")
+                
+                if daily_data_2y is None or daily_data_2y.empty:
+                    logger.warning(f"yfinance 無法獲取 {ticker_with_suffix} 的2年數據")
+                    continue
+                
+                # 獲取股票資訊
+                stock_info = {}
+                try:
+                    info = stock.info
+                    if info:
+                        stock_info['longName'] = info.get('longName', info.get('shortName', ticker))
+                except:
+                    stock_info['longName'] = ticker
+                
+                logger.info(f"成功使用 yfinance 獲取 {ticker_with_suffix} 的2年數據")
+                return daily_data_2y, stock_info, None, "yfinance"
+                
+            except Exception as e:
+                logger.warning(f"yfinance 獲取 {ticker_with_suffix} 的2年數據失敗: {str(e)}")
+                continue
+        
+        # yfinance 失敗，嘗試台灣證交所 API
+        logger.info(f"yfinance 失敗，嘗試使用台灣證交所 API 獲取 {ticker} 的2年數據")
+        daily_data_2y = get_twse_stock_data(ticker, days=730)
+        
+        if daily_data_2y is None or daily_data_2y.empty:
+            return None, None, f"無法從台灣證交所獲取股票代碼 {ticker} 的2年數據", None
+        
+        # 獲取股票名稱
+        stock_info = {}
+        try:
+            url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+            params = {
+                'response': 'json',
+                'date': datetime.now().strftime('%Y%m%d'),
+                'stockNo': ticker
+            }
+            response = requests.get(url, params=params, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('stat') == 'OK' and 'title' in data:
+                    title = data['title']
+                    parts = title.split()
+                    if len(parts) >= 2:
+                        stock_info['longName'] = parts[1]
+        except:
+            pass
+        
+        logger.info(f"成功使用台灣證交所 API 獲取 {ticker} 的2年數據")
+        return daily_data_2y, stock_info, None, "TWSE"
+    
+    except Exception as e:
+        return None, None, f"獲取2年數據時發生錯誤: {str(e)}", None
+
+
+def calculate_support_resistance_levels(daily_data_2y, current_price):
+    """
+    計算多重分形支撐與壓力位（參考 TradingView Fractals 指標）
+    
+    參數:
+        daily_data_2y: 過去2年的日線數據 (DataFrame)
+        current_price: 當前價格
+    
+    返回:
+        dict 包含 R1, R2, R3, S1, S2, S3（多重支撐壓力位）
+    """
+    try:
+        if daily_data_2y is None or daily_data_2y.empty or len(daily_data_2y) < 11:
+            return {
+                'r1': None, 'r2': None, 'r3': None,
+                's1': None, 's2': None, 's3': None,
+                'error': '數據不足，無法計算支撐壓力位（需要至少11根K棒）'
+            }
+        
+        # 確保數據按日期排序（由舊到新）
+        daily_data_2y = daily_data_2y.sort_index()
+        
+        # 1. 找出所有分形高點和分形低點（Fractals）
+        # 分形高點：高於左右各5根K棒的最高價
+        # 分形低點：低於左右各5根K棒的最低價
+        window = 5
+        
+        fractal_highs = []  # 儲存 (日期, 價格)
+        fractal_lows = []   # 儲存 (日期, 價格)
+        
+        for i in range(window, len(daily_data_2y) - window):
+            current_high = daily_data_2y['High'].iloc[i]
+            current_low = daily_data_2y['Low'].iloc[i]
+            current_date = daily_data_2y.index[i]
+            
+            # 檢查是否為分形高點（高於左右各5根K棒）
+            is_fractal_high = True
+            for j in range(i - window, i + window + 1):
+                if j != i and daily_data_2y['High'].iloc[j] >= current_high:
+                    is_fractal_high = False
+                    break
+            
+            if is_fractal_high:
+                fractal_highs.append((current_date, current_high))
+            
+            # 檢查是否為分形低點（低於左右各5根K棒）
+            is_fractal_low = True
+            for j in range(i - window, i + window + 1):
+                if j != i and daily_data_2y['Low'].iloc[j] <= current_low:
+                    is_fractal_low = False
+                    break
+            
+            if is_fractal_low:
+                fractal_lows.append((current_date, current_low))
+        
+        # 2. 篩選與排序多重壓力位 (Resistances)
+        # 找出所有 > 當前價格 的分形高點，由近到遠排序（按日期降序），取前3個
+        valid_resistances = [(date, price) for date, price in fractal_highs if price > current_price]
+        
+        # 按日期降序排序（最近的在前）
+        valid_resistances.sort(key=lambda x: x[0], reverse=True)
+        
+        # 過濾重複價格值（保留第一個出現的）
+        seen_prices = set()
+        unique_resistances = []
+        for date, price in valid_resistances:
+            # 將價格四捨五入到小數點後2位進行比較
+            price_rounded = round(price, 2)
+            if price_rounded not in seen_prices:
+                seen_prices.add(price_rounded)
+                unique_resistances.append((date, price))
+                if len(unique_resistances) >= 3:
+                    break
+        
+        # 應用台股 Tick Size 修正（壓力位向下取整）
+        r1 = adjust_to_tick(unique_resistances[0][1], direction='resistance') if len(unique_resistances) >= 1 else None
+        r2 = adjust_to_tick(unique_resistances[1][1], direction='resistance') if len(unique_resistances) >= 2 else None
+        r3 = adjust_to_tick(unique_resistances[2][1], direction='resistance') if len(unique_resistances) >= 3 else None
+        
+        # 3. 篩選與排序多重支撐位 (Supports)
+        # 找出所有 < 當前價格 的分形低點，由近到遠排序（按日期降序），取前3個
+        valid_supports = [(date, price) for date, price in fractal_lows if price < current_price]
+        
+        # 按日期降序排序（最近的在前）
+        valid_supports.sort(key=lambda x: x[0], reverse=True)
+        
+        # 過濾重複價格值（保留第一個出現的）
+        seen_prices = set()
+        unique_supports = []
+        for date, price in valid_supports:
+            # 將價格四捨五入到小數點後2位進行比較
+            price_rounded = round(price, 2)
+            if price_rounded not in seen_prices:
+                seen_prices.add(price_rounded)
+                unique_supports.append((date, price))
+                if len(unique_supports) >= 3:
+                    break
+        
+        # 應用台股 Tick Size 修正（支撐位向上取整）
+        s1 = adjust_to_tick(unique_supports[0][1], direction='support') if len(unique_supports) >= 1 else None
+        s2 = adjust_to_tick(unique_supports[1][1], direction='support') if len(unique_supports) >= 2 else None
+        s3 = adjust_to_tick(unique_supports[2][1], direction='support') if len(unique_supports) >= 3 else None
+        
+        return {
+            'r1': round(r1, 2) if r1 is not None else None,
+            'r2': round(r2, 2) if r2 is not None else None,
+            'r3': round(r3, 2) if r3 is not None else None,
+            's1': round(s1, 2) if s1 is not None else None,
+            's2': round(s2, 2) if s2 is not None else None,
+            's3': round(s3, 2) if s3 is not None else None,
+            'error': None
+        }
+        
+    except Exception as e:
+        logger.error(f"計算多重支撐壓力位時發生錯誤: {str(e)}")
+        return {
+            'r1': None, 'r2': None, 'r3': None,
+            's1': None, 's2': None, 's3': None,
+            'error': f'計算多重支撐壓力位時發生錯誤: {str(e)}'
+        }
+
+
 def get_stock_signals(ticker):
     """
     獲取股票訊號：日 KD 金叉、週 KD 金叉、站上 20MA
@@ -481,6 +764,42 @@ def get_stock_signals(ticker):
         # 顯示時只顯示數字部分
         signals['ticker_display'] = ticker_clean
         signals['ticker'] = ticker_clean
+        
+        # 計算多重分形支撐與壓力位
+        try:
+            # 獲取過去2年的歷史數據
+            daily_data_2y, stock_info_2y, error_msg_2y, data_source_2y = get_stock_data_2years(ticker_clean)
+            
+            if daily_data_2y is not None and not daily_data_2y.empty:
+                # 計算多重支撐壓力位
+                support_resistance = calculate_support_resistance_levels(daily_data_2y, current_price)
+                
+                # 將結果加入到 signals 字典
+                signals['r1'] = support_resistance.get('r1')
+                signals['r2'] = support_resistance.get('r2')
+                signals['r3'] = support_resistance.get('r3')
+                signals['s1'] = support_resistance.get('s1')
+                signals['s2'] = support_resistance.get('s2')
+                signals['s3'] = support_resistance.get('s3')
+                signals['support_resistance_error'] = support_resistance.get('error')
+            else:
+                # 無法獲取2年數據，設置為 None
+                signals['r1'] = None
+                signals['r2'] = None
+                signals['r3'] = None
+                signals['s1'] = None
+                signals['s2'] = None
+                signals['s3'] = None
+                signals['support_resistance_error'] = f"無法獲取2年歷史數據: {error_msg_2y}" if error_msg_2y else "無法獲取2年歷史數據"
+        except Exception as e:
+            logger.error(f"計算多重支撐壓力位時發生錯誤: {str(e)}")
+            signals['r1'] = None
+            signals['r2'] = None
+            signals['r3'] = None
+            signals['s1'] = None
+            signals['s2'] = None
+            signals['s3'] = None
+            signals['support_resistance_error'] = f"計算多重支撐壓力位時發生錯誤: {str(e)}"
         
         return signals
         
