@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台股投資工具整合平台</title>
+    <style>
+        /* ============================================
+           設計系統 - CSS 變數定義
+           ============================================ */
+        :root {
+            /* 色彩系統 */
+            --color-primary: #667eea;
+            --color-primary-dark: #764ba2;
+            --color-success: #27ae60;
+            --color-success-light: #2ecc71;
+            --color-warning: #f59e0b;
+            --color-error: #e74c3c;
+            --color-error-dark: #c0392b;
+            --color-info: #3b82f6;
+            
+            /* 背景色 */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f0f9ff;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --bg-gradient-success: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            --bg-gradient-error: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            --bg-gradient-warning: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+            
+            /* 文字顏色 */
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --text-tertiary: #555;
+            --text-inverse: #ffffff;
+            
+            /* 邊框顏色 */
+            --border-light: #e0e0e0;
+            --border-medium: #d0d0d0;
+            --border-focus: #667eea;
+            
+            /* 字體系統 */
+            --font-family: 'Segoe UI', 'Microsoft JhengHei', Tahoma, Geneva, Verdana, sans-serif;
+            --font-size-h1: 32px;
+            --font-size-h2: 24px;
+            --font-size-h3: 18px;
+            --font-size-body: 16px;
+            --font-size-small: 14px;
+            --font-size-caption: 12px;
+            --font-weight-bold: 700;
+            --font-weight-semibold: 600;
+            --font-weight-medium: 500;
+            --font-weight-normal: 400;
+            
+            /* 間距系統 */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 12px;
+            --spacing-lg: 16px;
+            --spacing-xl: 24px;
+            --spacing-2xl: 32px;
+            --spacing-3xl: 48px;
+            --spacing-4xl: 64px;
+            
+            /* 圓角系統 */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            
+            /* 陰影系統 */
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+            --shadow-xl: 0 10px 40px rgba(0, 0, 0, 0.2);
+            
+            /* 過渡動畫 */
+            --transition-fast: 0.2s ease;
+            --transition-base: 0.3s ease;
+            --transition-slow: 0.5s ease;
+        }
+        
+        /* ============================================
+           基礎重置與全域樣式
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            padding: var(--spacing-lg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        /* ============================================
+           主容器與頁面標題
+           ============================================ */
+        .main-container {
+            background: var(--bg-primary);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        
+        .page-header {
+            background: var(--bg-gradient);
+            color: var(--text-inverse);
+            padding: var(--spacing-3xl) var(--spacing-2xl);
+            text-align: center;
+        }
+        
+        .page-header h1 {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--spacing-md);
+            color: var(--text-inverse);
+        }
+        
+        .page-header p {
+            font-size: var(--font-size-body);
+            opacity: 0.9;
+        }
+        
+        /* ============================================
+           標籤頁導覽
+           ============================================ */
+        .tabs-container {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-light);
+            display: flex;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        .tabs-container::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .tab-button {
+            flex: 1;
+            min-width: 150px;
+            padding: var(--spacing-lg) var(--spacing-xl);
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            white-space: nowrap;
+        }
+        
+        .tab-button:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: var(--color-primary);
+        }
+        
+        .tab-button.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+            background: var(--bg-primary);
+        }
+        
+        .tab-content {
+            display: none;
+            padding: var(--spacing-3xl) var(--spacing-2xl);
+            animation: fadeIn var(--transition-base);
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* ============================================
+           區塊樣式
+           ============================================ */
+        .section {
+            margin-bottom: var(--spacing-3xl);
+        }
+        
+        .section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+            padding-bottom: var(--spacing-lg);
+            border-bottom: 2px solid var(--border-light);
+        }
+        
+        .section-header h2 {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+        }
+        
+        .section-header .icon {
+            font-size: 28px;
+        }
+        
+        .section-description {
+            color: var(--text-secondary);
+            font-size: var(--font-size-small);
+            margin-top: var(--spacing-sm);
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        /* ============================================
+           表單元件
+           ============================================ */
+        .form-group {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-primary);
+            font-weight: var(--font-weight-medium);
+            font-size: var(--font-size-body);
+        }
+        
+        .form-label .required {
+            color: var(--color-error);
+            margin-left: var(--spacing-xs);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--spacing-lg);
+            border: 2px solid var(--border-light);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-body);
+            font-family: var(--font-family);
+            transition: all var(--transition-base);
+            background: var(--bg-primary);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .form-helper {
+            margin-top: var(--spacing-sm);
+            font-size: var(--font-size-small);
+            color: var(--text-secondary);
+        }
+        
+        /* ============================================
+           按鈕元件
+           ============================================ */
+        .btn {
+            width: 100%;
+            padding: var(--spacing-lg) var(--spacing-xl);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            min-height: 44px; /* 手機觸控友善 */
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: var(--bg-gradient);
+            color: var(--text-inverse);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-gradient-warning);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #fde68a 0%, #fef3c7 100%);
+        }
+        
+        .btn-success {
+            background: var(--bg-gradient-success);
+            color: var(--text-inverse);
+        }
+        
+        .btn-loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-inverse);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* ============================================
+           訊息提示元件
+           ============================================ */
+        .alert {
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-lg);
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-md);
+            animation: slideIn var(--transition-base);
+        }
+        
+        .alert-error {
+            background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+            border-left: 4px solid var(--color-error);
+            color: var(--color-error-dark);
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 4px solid var(--color-success);
+            color: #155724;
+        }
+        
+        .alert-info {
+            background: var(--bg-tertiary);
+            border-left: 4px solid var(--color-info);
+            color: #1e40af;
+        }
+        
+        .alert-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .alert-message {
+            font-size: var(--font-size-small);
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* ============================================
+           載入狀態
+           ============================================ */
+        .loading-container {
+            text-align: center;
+            padding: var(--spacing-3xl);
+            display: none;
+        }
+        
+        .loading-container.active {
+            display: block;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border-light);
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto var(--spacing-lg);
+        }
+        
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+        }
+        
+        /* ============================================
+           結果區塊
+           ============================================ */
+        .results-container {
+            margin-top: var(--spacing-3xl);
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+            animation: fadeIn var(--transition-base);
+        }
+        
+        .results-header {
+            text-align: center;
+            margin-bottom: var(--spacing-2xl);
+        }
+        
+        .results-header h3 {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .results-header p {
+            color: var(--text-secondary);
+            font-size: var(--font-size-small);
+        }
+        
+        /* ============================================
+           表格樣式
+           ============================================ */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: var(--spacing-xl);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-primary);
+            min-width: 600px;
+        }
+        
+        thead {
+            background: var(--bg-gradient);
+            color: var(--text-inverse);
+        }
+        
+        thead th {
+            padding: var(--spacing-lg);
+            text-align: left;
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-small);
+        }
+        
+        tbody td {
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-light);
+            font-size: var(--font-size-body);
+        }
+        
+        tbody tr:hover {
+            background: var(--bg-secondary);
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .table-support thead {
+            background: var(--bg-gradient-success);
+        }
+        
+        .table-resistance thead {
+            background: var(--bg-gradient-error);
+        }
+        
+        .table-price {
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-body);
+        }
+        
+        .price-support {
+            color: var(--color-success);
+        }
+        
+        .price-resistance {
+            color: var(--color-error);
+        }
+        
+        /* ============================================
+           卡片元件
+           ============================================ */
+        .card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .card-header {
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-light);
+        }
+        
+        .card-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+        }
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-2xl);
+        }
+        
+        .metric-card {
+            padding: var(--spacing-xl);
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-light);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-base);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .metric-label {
+            font-size: var(--font-size-small);
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+        
+        /* ============================================
+           股票訊號卡片
+           ============================================ */
+        .signal-card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-top: var(--spacing-xl);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .stock-header {
+            background: var(--bg-gradient);
+            color: var(--text-inverse);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .stock-header h3 {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-semibold);
+            margin: 0;
+        }
+        
+        .signal-group {
+            margin-bottom: var(--spacing-xl);
+            padding: var(--spacing-xl);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            border-left: 4px solid var(--color-primary);
+        }
+        
+        .signal-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .signal-group-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-md);
+            border-bottom: 2px solid var(--border-light);
+        }
+        
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-md) 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        
+        .signal-item:last-child {
+            border-bottom: none;
+        }
+        
+        .signal-label {
+            font-weight: var(--font-weight-medium);
+            color: var(--text-tertiary);
+        }
+        
+        .signal-value {
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-body);
+        }
+        
+        .signal-yes {
+            color: var(--color-success);
+        }
+        
+        .signal-no {
+            color: var(--color-error);
+        }
+        
+        /* ============================================
+           資訊框
+           ============================================ */
+        .info-box {
+            background: var(--bg-secondary);
+            border-left: 4px solid var(--color-primary);
+            padding: var(--spacing-lg);
+            margin-top: var(--spacing-xl);
+            border-radius: var(--radius-sm);
+        }
+        
+        .info-box p {
+            margin: var(--spacing-xs) 0;
+            color: var(--text-tertiary);
+            font-size: var(--font-size-small);
+        }
+        
+        .info-box strong {
+            color: var(--text-primary);
+        }
+        
+        /* ============================================
+           響應式設計
+           ============================================ */
+        @media (max-width: 768px) {
+            body {
+                padding: var(--spacing-sm);
+            }
+            
+            .main-container {
+                border-radius: var(--radius-lg);
+            }
+            
+            .page-header {
+                padding: var(--spacing-2xl) var(--spacing-lg);
+            }
+            
+            .page-header h1 {
+                font-size: 24px;
+            }
+            
+            .tab-content {
+                padding: var(--spacing-xl) var(--spacing-lg);
+            }
+            
+            .tab-button {
+                min-width: 120px;
+                padding: var(--spacing-md) var(--spacing-lg);
+                font-size: var(--font-size-small);
+            }
+            
+            .section-header h2 {
+                font-size: 20px;
+            }
+            
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .metric-value {
+                font-size: 24px;
+            }
+            
+            .table-wrapper {
+                margin-left: calc(-1 * var(--spacing-lg));
+                margin-right: calc(-1 * var(--spacing-lg));
+                border-radius: 0;
+            }
+            
+            table {
+                min-width: 100%;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .page-header h1 {
+                font-size: 20px;
+            }
+            
+            .tab-button {
+                min-width: 100px;
+                font-size: var(--font-size-caption);
+            }
+        }
+        
+        /* ============================================
+           工具類別
+           ============================================ */
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-lg {
+            margin-top: var(--spacing-xl);
+        }
+        
+        .mb-lg {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 頁面標題 -->
+        <div class="page-header">
+        <h1>📈 台股投資工具整合平台</h1>
+            <p>專業的技術分析與族群熱度分析工具</p>
+        </div>
+        
+        <!-- 標籤頁導覽 -->
+        <div class="tabs-container">
+            <button class="tab-button active" onclick="switchTab('fibonacci')" id="tab-fibonacci">
+                📊 斐波那契計算
+            </button>
+            <button class="tab-button" onclick="switchTab('signals')" id="tab-signals">
+                📈 股票訊號
+            </button>
+            <button class="tab-button" onclick="switchTab('themes')" id="tab-themes">
+                🔥 族群分析
+            </button>
+        </div>
+        
+        <!-- 斐波那契計算標籤頁 -->
+        <div id="content-fibonacci" class="tab-content active">
+        <div class="section">
+                <div class="section-header">
+                    <span class="icon">📊</span>
+                    <h2>斐波那契支撐位與壓力位計算器</h2>
+                </div>
+                <p class="section-description">
+                    輸入股票的高點與低點價格，系統會自動計算斐波那契回撤水平（支撐位）與擴展水平（壓力位），並根據台股 Tick Size 規則進行價格修正。
+                </p>
+                
+                <form method="POST" action="/" id="fibonacciForm">
+                <input type="hidden" name="form_type" value="fibonacci">
+                <div class="form-group">
+                        <label for="high_price" class="form-label">
+                            高點價格 (High Price)
+                            <span class="required">*</span>
+                        </label>
+                    <input type="number" 
+                           id="high_price" 
+                           name="high_price" 
+                               class="form-input"
+                           step="0.01" 
+                           min="0" 
+                           required
+                               placeholder="例如: 580.00"
+                           value="{{ request.form.get('high_price', '') if request.form else '' }}">
+                        <p class="form-helper">請輸入股票的最高價格</p>
+                </div>
+                
+                <div class="form-group">
+                        <label for="low_price" class="form-label">
+                            低點價格 (Low Price)
+                            <span class="required">*</span>
+                        </label>
+                    <input type="number" 
+                           id="low_price" 
+                           name="low_price" 
+                               class="form-input"
+                           step="0.01" 
+                           min="0" 
+                           required
+                               placeholder="例如: 500.00"
+                           value="{{ request.form.get('low_price', '') if request.form else '' }}">
+                        <p class="form-helper">請輸入股票的最低價格</p>
+                </div>
+                
+                    <button type="submit" class="btn btn-primary">
+                        計算斐波那契支撐位與壓力位
+                    </button>
+            </form>
+            
+            {% if fibonacci_error %}
+                <div class="alert alert-error">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-content">
+                        <div class="alert-title">計算錯誤</div>
+                        <div class="alert-message">{{ fibonacci_error }}</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if support_levels or resistance_levels %}
+                <div class="results-container show">
+                    <div class="results-header">
+                        <h3>計算結果</h3>
+                    </div>
+                
+                {% if support_levels %}
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🛡️ 潛在支撐位 (斐波那契回撤)</h3>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table-support">
+                        <thead>
+                            <tr>
+                                <th>回撤水平</th>
+                                <th>支撐價格</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for level, price in support_levels %}
+                            <tr>
+                                        <td class="table-price">{{ "%.3f"|format(level) }}</td>
+                                        <td class="table-price price-support">{{ "%.2f"|format(price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                        </div>
+                </div>
+                {% endif %}
+                
+                {% if resistance_levels %}
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">📊 潛在壓力位 (斐波那契擴展)</h3>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table-resistance">
+                        <thead>
+                            <tr>
+                                <th>擴展水平</th>
+                                <th>壓力價格</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for level, price in resistance_levels %}
+                            <tr>
+                                        <td class="table-price">{{ "%.3f"|format(level) }}</td>
+                                        <td class="table-price price-resistance">{{ "%.2f"|format(price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                        </div>
+                </div>
+                {% endif %}
+                
+                <div class="info-box">
+                    <p><strong>高點價格:</strong> {{ "%.2f"|format(high_price) }}</p>
+                    <p><strong>低點價格:</strong> {{ "%.2f"|format(low_price) }}</p>
+                    <p><strong>價格區間:</strong> {{ "%.2f"|format(range_value) }}</p>
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+        
+        <!-- 股票訊號標籤頁 -->
+        <div id="content-signals" class="tab-content">
+        <div class="section">
+                <div class="section-header">
+                    <span class="icon">📈</span>
+                    <h2>股票訊號儀表板</h2>
+                </div>
+                <p class="section-description">
+                    輸入台股代碼（如 2330、2317），系統會自動查詢並分析該股票的日線/週線 KD 金叉訊號、20MA 站上判斷，以及多重支撐壓力位。
+                </p>
+                
+                <form method="POST" action="/" id="signalsForm">
+                <input type="hidden" name="form_type" value="signal">
+                <div class="form-group">
+                        <label for="ticker" class="form-label">
+                            台股代碼
+                            <span class="required">*</span>
+                        </label>
+                    <input type="text" 
+                           id="ticker" 
+                           name="ticker" 
+                               class="form-input"
+                           placeholder="例如: 2330, 2317, 2454 (無需輸入.TW)"
+                           required
+                               pattern="[0-9]{4}"
+                               maxlength="4"
+                           value="{{ request.form.get('ticker', '') if request.form and request.form.get('form_type') == 'signal' else '' }}">
+                        <p class="form-helper">只需輸入 4 位數字代碼，系統會自動嘗試上市/上櫃</p>
+                </div>
+                
+                    <button type="submit" class="btn btn-primary">
+                        查詢股票訊號
+                    </button>
+            </form>
+            
+            {% if signal_error %}
+                <div class="alert alert-error">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-content">
+                        <div class="alert-title">查詢失敗</div>
+                        <div class="alert-message">{{ signal_error }}</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if stock_signals %}
+            <div class="signal-card">
+                {% if stock_signals.stock_name %}
+                    <div class="stock-header">
+                    <h3>{{ stock_signals.stock_name }} ({{ stock_signals.ticker_display }})</h3>
+                </div>
+                {% endif %}
+                
+                <!-- 日線訊號區塊 -->
+                <div class="signal-group">
+                    <h4 class="signal-group-title">📊 日線訊號</h4>
+                    <div class="signal-item">
+                        <span class="signal-label">日 KD 金叉:</span>
+                        <span class="signal-value {% if stock_signals.daily_kd_golden_cross %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.daily_kd_golden_cross %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.daily_k is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日 K 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_k) }}</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="signal-label">日 D 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_d) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線價格站上 20MA:</span>
+                        <span class="signal-value {% if stock_signals.daily_price_above_ma20 %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.daily_price_above_ma20 %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.current_price is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線當前價格:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.current_price) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if stock_signals.daily_ma20 is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">日線 20 日均線:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.daily_ma20) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- 週線訊號區塊 -->
+                <div class="signal-group">
+                    <h4 class="signal-group-title">📈 週線訊號</h4>
+                    <div class="signal-item">
+                        <span class="signal-label">週 KD 金叉:</span>
+                        <span class="signal-value {% if stock_signals.weekly_kd_golden_cross %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.weekly_kd_golden_cross %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.weekly_k is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週 K 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_k) }}</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="signal-label">週 D 值:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_d) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線價格站上 20MA:</span>
+                        <span class="signal-value {% if stock_signals.weekly_price_above_ma20 %}signal-yes{% else %}signal-no{% endif %}">
+                            {% if stock_signals.weekly_price_above_ma20 %}✓ 是{% else %}✗ 否{% endif %}
+                        </span>
+                    </div>
+                    {% if stock_signals.weekly_price is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線當前價格:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_price) }}</span>
+                    </div>
+                    {% endif %}
+                    {% if stock_signals.weekly_ma20 is not none %}
+                    <div class="signal-item">
+                        <span class="signal-label">週線 20 週均線:</span>
+                        <span class="signal-value">{{ "%.2f"|format(stock_signals.weekly_ma20) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- 多重關鍵支撐與壓力位區塊 -->
+                {% if stock_signals.r1 is not none or stock_signals.r2 is not none or stock_signals.r3 is not none or stock_signals.s1 is not none or stock_signals.s2 is not none or stock_signals.s3 is not none %}
+                <div class="signal-group" style="margin-top: 25px;">
+                    <h4 class="signal-group-title">🎯 多重關鍵支撐與壓力位（分形指標）</h4>
+                    
+                    {% if stock_signals.support_resistance_error %}
+                        <div class="alert alert-error">
+                            <span class="alert-icon">⚠️</span>
+                            <div class="alert-content">
+                                <div class="alert-message">{{ stock_signals.support_resistance_error }}</div>
+                            </div>
+                    </div>
+                    {% endif %}
+                    
+                        <div class="table-wrapper" style="margin-top: 15px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                    <tr style="background: var(--bg-gradient); color: var(--text-inverse);">
+                                    <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">價位類型</th>
+                                    <th style="padding: 12px; text-align: right; font-weight: 600; font-size: 14px;">價格</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if stock_signals.r3 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R3（最遠）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #c0392b;">{{ "%.2f"|format(stock_signals.r3) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.r2 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R2</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #e74c3c;">{{ "%.2f"|format(stock_signals.r2) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.r1 is not none %}
+                                <tr style="border-bottom: 2px solid #667eea; background-color: #fff5f5;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">壓力位 R1（最近）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #e74c3c;">{{ "%.2f"|format(stock_signals.r1) }}</td>
+                                </tr>
+                                {% endif %}
+                                
+                                <!-- 當前價格分隔線 -->
+                                {% if stock_signals.current_price is not none %}
+                                    <tr style="background: var(--bg-gradient); border-top: 2px solid #667eea; border-bottom: 2px solid #667eea;">
+                                    <td style="padding: 14px; text-align: center; font-weight: 700; font-size: 16px; color: white;" colspan="2">
+                                        ═══ 當前價格：{{ "%.2f"|format(stock_signals.current_price) }} ═══
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if stock_signals.s1 is not none %}
+                                <tr style="border-top: 2px solid #27ae60; background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S1（最近）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #27ae60;">{{ "%.2f"|format(stock_signals.s1) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.s2 is not none %}
+                                <tr style="border-bottom: 1px solid #f0f0f0; background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S2</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #27ae60;">{{ "%.2f"|format(stock_signals.s2) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if stock_signals.s3 is not none %}
+                                <tr style="background-color: #f0fff4;">
+                                    <td style="padding: 12px; font-weight: 600; color: #555;">支撐位 S3（最遠）</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: #2ecc71;">{{ "%.2f"|format(stock_signals.s3) }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="info-box" style="margin-top: 15px;">
+                        <p style="margin: 5px 0; color: #555; font-size: 13px;"><strong>說明：</strong></p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>分形指標 (Fractals)</strong>：參考 TradingView 的分形指標，識別高於/低於左右各5根K棒的關鍵價位</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>多重壓力位 (R1-R3)</strong>：從過去2年數據中找出 > 當前價格的分形高點，由近到遠排序，取前3個</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>多重支撐位 (S1-S3)</strong>：從過去2年數據中找出 < 當前價格的分形低點，由近到遠排序，取前3個</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>價格修正</strong>：所有價格已根據台股升降單位 (Tick Size) 進行修正（壓力位向下取整，支撐位向上取整）</p>
+                        <p style="margin: 5px 0; color: #555; font-size: 12px;">• <strong>過濾重複</strong>：自動過濾重複的價格值，確保每個價位都是唯一的</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            </div>
+        </div>
+
+        <!-- 族群熱度分析標籤頁 -->
+        <div id="content-themes" class="tab-content">
+        <div class="section">
+                <div class="section-header">
+                    <span class="icon">🔥</span>
+                    <h2>族群熱度分析</h2>
+                </div>
+                <p class="section-description">
+                    分析當日高週轉率股票的族群分布，自動從 TWSE 和 TPEx API 載入資料，並提供週轉率分析報告與注意股分析報告。
+                </p>
+            
+            <form id="themeAnalysisForm" onsubmit="analyzeTheme(event)">
+                <div class="form-group">
+                        <label for="top_n" class="form-label">前 N 名（選填）</label>
+                    <input type="number" 
+                           id="top_n" 
+                           name="top_n" 
+                               class="form-input"
+                           placeholder="例如: 50（留空則分析所有資料）"
+                           min="1"
+                           max="500">
+                        <p class="form-helper">限制分析前 N 名高週轉率股票，留空則分析所有資料</p>
+                </div>
+                
+                    <button type="submit" class="btn btn-secondary">
+                        📊 開始分析
+                    </button>
+            </form>
+            
+                <div id="themeAnalysisLoading" class="loading-container">
+                    <div class="spinner"></div>
+                    <p class="loading-text">正在載入資料並分析...</p>
+            </div>
+            
+                <div id="themeAnalysisError" class="alert alert-error hidden">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-content">
+                        <div class="alert-title">分析失敗</div>
+                        <div class="alert-message" id="themeAnalysisErrorMsg"></div>
+                    </div>
+            </div>
+            
+                <div id="themeAnalysisResults" class="results-container">
+                    <div id="themeAnalysisContent"></div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <script>
+        // 標籤頁切換功能
+        function switchTab(tabName) {
+            // 隱藏所有標籤內容
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 移除所有按鈕的 active 類別
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 顯示選中的標籤內容
+            const content = document.getElementById('content-' + tabName);
+            if (content) {
+                content.classList.add('active');
+            }
+            
+            // 添加 active 類別到選中的按鈕
+            const button = document.getElementById('tab-' + tabName);
+            if (button) {
+                button.classList.add('active');
+            }
+            
+            // 滾動到頂部
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // 表單提交時顯示載入狀態
+        document.getElementById('fibonacciForm')?.addEventListener('submit', function(e) {
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.classList.add('btn-loading');
+                btn.disabled = true;
+            }
+        });
+        
+        document.getElementById('signalsForm')?.addEventListener('submit', function(e) {
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.classList.add('btn-loading');
+                btn.disabled = true;
+            }
+        });
+        
+        // 族群分析功能
+        async function analyzeTheme(event) {
+            event.preventDefault();
+            
+            const topN = document.getElementById('top_n').value;
+            const loadingDiv = document.getElementById('themeAnalysisLoading');
+            const errorDiv = document.getElementById('themeAnalysisError');
+            const resultsDiv = document.getElementById('themeAnalysisResults');
+            const contentDiv = document.getElementById('themeAnalysisContent');
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            
+            // 顯示載入中
+            loadingDiv.classList.add('active');
+            errorDiv.classList.add('hidden');
+            resultsDiv.classList.remove('show');
+            if (submitBtn) {
+                submitBtn.classList.add('btn-loading');
+                submitBtn.disabled = true;
+            }
+            
+            try {
+                const response = await fetch('/theme-analysis/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ top_n: topN || null })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 顯示結果
+                    displayThemeResults(data);
+                    resultsDiv.classList.add('show');
+                    // 滾動到結果
+                    setTimeout(() => {
+                        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                } else {
+                    // 顯示錯誤
+                    document.getElementById('themeAnalysisErrorMsg').textContent = data.error || '分析失敗';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                document.getElementById('themeAnalysisErrorMsg').textContent = '請求失敗: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                loadingDiv.classList.remove('active');
+                if (submitBtn) {
+                    submitBtn.classList.remove('btn-loading');
+                    submitBtn.disabled = false;
+                }
+            }
+        }
+        
+        function displayThemeResults(data) {
+            const contentDiv = document.getElementById('themeAnalysisContent');
+            const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            // 準備標籤頁
+            const hasFocusReport = data.focus_report && data.focus_report.theme_heat_ranking && data.focus_report.theme_heat_ranking.length > 0;
+            
+            let html = '';
+            
+            // 標籤頁按鈕
+            if (hasFocusReport) {
+                html += '<div style="margin-bottom: 24px; border-bottom: 2px solid var(--border-light); display: flex; gap: 8px;">';
+                html += '<button class="tab-btn active" onclick="switchReportTab(\'turnover\')" id="report-tab-turnover" style="padding: 12px 24px; border: none; border-bottom: 3px solid var(--color-primary); background: transparent; color: var(--color-primary); font-weight: 600; cursor: pointer; transition: all 0.3s;">📈 週轉率分析報告</button>';
+                html += '<button class="tab-btn" onclick="switchReportTab(\'focus\')" id="report-tab-focus" style="padding: 12px 24px; border: none; border-bottom: 3px solid transparent; background: transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; transition: all 0.3s;">⚠️ 注意股分析報告</button>';
+                html += '</div>';
+            }
+            
+            // 週轉率分析報告
+            html += '<div id="report-content-turnover" class="report-tab-content">';
+            if (data.turnover_report) {
+                html += '<div class="results-header">';
+                html += '<h3>📅 ' + today + '</h3>';
+                html += '<p>週轉率族群熱度分析報告</p>';
+                html += '</div>';
+                
+                // 指標卡片
+                html += '<div class="metric-grid">';
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">📊 分析標的</div>';
+                html += '<div class="metric-value">' + data.turnover_report.summary.total_stocks + ' 檔</div>';
+                html += '</div>';
+                
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">🔥 活躍族群</div>';
+                html += '<div class="metric-value">' + data.turnover_report.summary.total_themes + ' 個</div>';
+                html += '</div>';
+                
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">📈 平均週轉率</div>';
+                html += '<div class="metric-value">' + data.turnover_report.summary.avg_turnover.toFixed(2) + '%</div>';
+                html += '</div>';
+                html += '</div>';
+                
+                // 族群熱度排行
+                html += '<div class="card">';
+                html += '<div class="card-header">';
+                html += '<h3 class="card-title">🔥 族群熱度排行</h3>';
+                html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">依出現檔數與平均週轉率排序</p>';
+                html += '</div>';
+                
+                if (data.turnover_report.theme_heat_ranking && data.turnover_report.theme_heat_ranking.length > 0) {
+                    html += '<div class="table-wrapper">';
+                    html += '<table class="table-support" id="turnover-theme-table">';
+                    html += '<thead><tr><th>排名</th><th>族群名稱</th><th style="text-align: right;">出現檔數</th><th style="text-align: right;">平均週轉率 (%)</th><th>操作</th></tr></thead><tbody>';
+                    data.turnover_report.theme_heat_ranking.forEach((theme, idx) => {
+                        const safeThemeId = 'turnover-' + theme.theme_name.replace(/[^a-zA-Z0-9]/g, '-');
+                        html += '<tr id="theme-row-' + safeThemeId + '">';
+                        html += '<td style="font-weight: 600; color: var(--color-primary);">' + (idx + 1) + '</td>';
+                        html += '<td>' + theme.theme_name + '</td>';
+                        html += '<td style="text-align: right;">' + theme.count_in_topN + '</td>';
+                        html += '<td style="text-align: right; font-weight: 600; color: var(--color-success);">' + theme.avg_turnover.toFixed(2) + '</td>';
+                        html += '<td><button onclick="toggleThemeStocksInTable(\'turnover\', \'' + theme.theme_name + '\', \'' + safeThemeId + '\')" id="btn-' + safeThemeId + '" style="padding: 6px 12px; background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">查看個股</button></td>';
+                        html += '</tr>';
+                        
+                        // 個股清單展開行（初始隱藏）
+                        const themeStocks = data.turnover_report.theme_stocks && data.turnover_report.theme_stocks[theme.theme_name] || [];
+                        if (themeStocks.length > 0) {
+                            html += '<tr id="theme-stocks-row-' + safeThemeId + '" style="display: none;">';
+                            html += '<td colspan="5" style="padding: 12px 16px; background: #f8f9fa; border-top: 1px solid #e5e7eb;">';
+                            // 簡化顯示：直接列出個股，不使用嵌套表格
+                            html += '<div style="display: flex; flex-wrap: wrap; gap: 12px;">';
+                            themeStocks.forEach((stock, stockIdx) => {
+                                html += '<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">';
+                                html += '<span style="font-weight: 600; color: var(--color-primary); font-size: 13px;">' + stock.code + '</span>';
+                                html += '<span style="font-size: 13px; color: var(--text-primary);">' + stock.name + '</span>';
+                                html += '</div>';
+                            });
+                            html += '</div></td></tr>';
+                        }
+                    });
+                    html += '</tbody></table></div>';
+                } else {
+                    html += '<div class="alert alert-info">';
+                    html += '<span class="alert-icon">💡</span>';
+                    html += '<div class="alert-content"><div class="alert-message">目前沒有匹配到任何族群的股票，請確認資料是否正確</div></div>';
+                    html += '</div>';
+                }
+                html += '</div>';
+                
+                // 週轉率前N名清單
+                if (data.turnover_report.turnover_stocks_list && data.turnover_report.turnover_stocks_list.length > 0) {
+                    html += '<div class="card" style="margin-top: 24px;">';
+                    html += '<div class="card-header">';
+                    html += '<h3 class="card-title">📊 週轉率前 N 名清單 (' + data.turnover_report.turnover_stocks_list.length + ' 檔)</h3>';
+                    html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">完整的高週轉率股票清單</p>';
+                    html += '</div>';
+                    html += '<details style="margin-top: 16px;"><summary style="cursor: pointer; color: var(--color-primary); font-weight: 600; padding: 8px;">查看完整清單（' + data.turnover_report.turnover_stocks_list.length + ' 檔）</summary>';
+                    html += '<div class="table-wrapper" style="margin-top: 12px;">';
+                    html += '<table><thead><tr style="background: var(--bg-secondary);"><th>排名</th><th>代碼</th><th>股票名稱</th>';
+                    const firstTurnoverStock = data.turnover_report.turnover_stocks_list[0];
+                    if (firstTurnoverStock && (firstTurnoverStock.chg_pct !== null && firstTurnoverStock.chg_pct !== undefined)) {
+                        html += '<th style="text-align: right;">漲跌 (%)</th>';
+                    }
+                    if (firstTurnoverStock && (firstTurnoverStock.turnover !== null && firstTurnoverStock.turnover !== undefined)) {
+                        html += '<th style="text-align: right;">週轉率 (%)</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+                    data.turnover_report.turnover_stocks_list.forEach((stock, idx) => {
+                        html += '<tr><td style="font-weight: 600; color: var(--color-primary);">' + (idx + 1) + '</td>';
+                        html += '<td>' + stock.code + '</td><td>' + stock.name + '</td>';
+                        if (stock.chg_pct !== null && stock.chg_pct !== undefined) {
+                            html += '<td style="text-align: right;">' + (stock.chg_pct >= 0 ? '+' : '') + stock.chg_pct.toFixed(2) + '</td>';
+                        }
+                        if (stock.turnover !== null && stock.turnover !== undefined) {
+                            html += '<td style="text-align: right; font-weight: 600; color: var(--color-success);">' + stock.turnover.toFixed(2) + '</td>';
+                        }
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div></details></div>';
+                }
+                
+                // 未分類股票
+                if (data.turnover_report.unclassified_stocks && data.turnover_report.unclassified_stocks.length > 0) {
+                    html += '<div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border-left: 4px solid var(--color-warning);">';
+                    html += '<div class="card-header">';
+                    html += '<h3 class="card-title">📦 未分類股票：' + data.turnover_report.unclassified_stocks.length + ' 檔</h3>';
+                    html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">這些股票不在任何族群定義中</p>';
+                    html += '</div>';
+                    html += '<details style="margin-top: 16px;"><summary style="cursor: pointer; color: var(--color-warning); font-weight: 600; padding: 8px;">查看未分類股票清單（' + data.turnover_report.unclassified_stocks.length + ' 檔）</summary>';
+                    html += '<div class="table-wrapper" style="margin-top: 12px;">';
+                    html += '<table><thead><tr style="background: var(--bg-secondary);"><th>代碼</th><th>股票名稱</th>';
+                    const firstStock = data.turnover_report.unclassified_stocks[0];
+                    if (firstStock && (firstStock.chg_pct !== null && firstStock.chg_pct !== undefined)) {
+                        html += '<th style="text-align: right;">漲跌 (%)</th>';
+                    }
+                    if (firstStock && (firstStock.turnover !== null && firstStock.turnover !== undefined)) {
+                        html += '<th style="text-align: right;">週轉率 (%)</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+                    data.turnover_report.unclassified_stocks.forEach(stock => {
+                        html += '<tr><td>' + stock.code + '</td><td>' + stock.name + '</td>';
+                        if (stock.chg_pct !== null && stock.chg_pct !== undefined) {
+                            html += '<td style="text-align: right;">' + (stock.chg_pct >= 0 ? '+' : '') + stock.chg_pct.toFixed(2) + '</td>';
+                        }
+                        if (stock.turnover !== null && stock.turnover !== undefined) {
+                            html += '<td style="text-align: right;">' + stock.turnover.toFixed(2) + '</td>';
+                        }
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div></details></div>';
+                }
+            }
+            html += '</div>';
+            
+            // 注意股分析報告
+            if (hasFocusReport) {
+                html += '<div id="report-content-focus" class="report-tab-content" style="display: none;">';
+                html += '<div class="results-header">';
+                html += '<h3>📅 ' + today + '</h3>';
+                html += '<p>注意股族群熱度分析報告</p>';
+                html += '</div>';
+                
+                // 指標卡片
+                html += '<div class="metric-grid">';
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">📊 注意股總數</div>';
+                html += '<div class="metric-value">' + data.focus_report.summary.total_focus_stocks + ' 檔</div>';
+                html += '</div>';
+                
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">✅ 有週轉率</div>';
+                html += '<div class="metric-value">' + data.focus_report.summary.merged_count + ' 檔</div>';
+                html += '</div>';
+                
+                html += '<div class="metric-card">';
+                html += '<div class="metric-label">📈 平均週轉率</div>';
+                if (data.focus_report.summary.avg_turnover !== null && data.focus_report.summary.avg_turnover !== undefined) {
+                    html += '<div class="metric-value">' + data.focus_report.summary.avg_turnover.toFixed(2) + '%</div>';
+                } else {
+                    html += '<div class="metric-value">N/A</div>';
+                }
+                html += '</div>';
+                html += '</div>';
+                
+                // 族群熱度排行
+                html += '<div class="card">';
+                html += '<div class="card-header">';
+                html += '<h3 class="card-title">🔥 注意股族群熱度排行</h3>';
+                html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">依出現檔數與平均週轉率排序</p>';
+                html += '</div>';
+                
+                if (data.focus_report.theme_heat_ranking && data.focus_report.theme_heat_ranking.length > 0) {
+                    html += '<div class="table-wrapper">';
+                    html += '<table class="table-resistance" id="focus-theme-table">';
+                    html += '<thead><tr><th>排名</th><th>族群名稱</th><th style="text-align: right;">出現檔數</th><th style="text-align: right;">平均週轉率 (%)</th><th>操作</th></tr></thead><tbody>';
+                    data.focus_report.theme_heat_ranking.forEach((theme, idx) => {
+                        const safeThemeId = 'focus-' + theme.theme_name.replace(/[^a-zA-Z0-9]/g, '-');
+                        html += '<tr id="theme-row-' + safeThemeId + '">';
+                        html += '<td style="font-weight: 600; color: var(--color-primary);">' + (idx + 1) + '</td>';
+                        html += '<td>' + theme.theme_name + '</td>';
+                        html += '<td style="text-align: right;">' + theme.count_in_topN + '</td>';
+                        html += '<td style="text-align: right; font-weight: 600; color: var(--color-error);">' + theme.avg_turnover.toFixed(2) + '</td>';
+                        html += '<td><button onclick="toggleThemeStocksInTable(\'focus\', \'' + theme.theme_name + '\', \'' + safeThemeId + '\')" id="btn-' + safeThemeId + '" style="padding: 6px 12px; background: var(--color-error); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">查看個股</button></td>';
+                        html += '</tr>';
+                        
+                        // 個股清單展開行（初始隱藏）
+                        const themeStocks = data.focus_report.theme_stocks && data.focus_report.theme_stocks[theme.theme_name] || [];
+                        if (themeStocks.length > 0) {
+                            html += '<tr id="theme-stocks-row-' + safeThemeId + '" style="display: none;">';
+                            html += '<td colspan="5" style="padding: 12px 16px; background: #fef2f2; border-top: 1px solid #fee2e2;">';
+                            // 簡化顯示：直接列出個股，不使用嵌套表格
+                            html += '<div style="display: flex; flex-wrap: wrap; gap: 12px;">';
+                            themeStocks.forEach((stock, stockIdx) => {
+                                html += '<div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border-radius: 6px; border: 1px solid #fee2e2;">';
+                                html += '<span style="font-weight: 600; color: var(--color-error); font-size: 13px;">' + stock.code + '</span>';
+                                html += '<span style="font-size: 13px; color: var(--text-primary);">' + stock.name + '</span>';
+                                html += '</div>';
+                            });
+                            html += '</div></td></tr>';
+                        }
+                    });
+                    html += '</tbody></table></div>';
+                } else {
+                    html += '<div class="alert alert-info">';
+                    html += '<span class="alert-icon">💡</span>';
+                    html += '<div class="alert-content"><div class="alert-message">目前沒有匹配到任何族群的注意股，請確認資料是否正確</div></div>';
+                    html += '</div>';
+                }
+                html += '</div>';
+                
+                // 注意股清單
+                if (data.focus_report.focus_stocks_list && data.focus_report.focus_stocks_list.length > 0) {
+                    html += '<div class="card" style="margin-top: 24px;">';
+                    html += '<div class="card-header">';
+                    html += '<h3 class="card-title">⚠️ 注意股清單 (' + data.focus_report.focus_stocks_list.length + ' 檔)</h3>';
+                    html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">完整的注意股清單</p>';
+                    html += '</div>';
+                    html += '<details style="margin-top: 16px;"><summary style="cursor: pointer; color: var(--color-error); font-weight: 600; padding: 8px;">查看完整清單（' + data.focus_report.focus_stocks_list.length + ' 檔）</summary>';
+                    html += '<div class="table-wrapper" style="margin-top: 12px;">';
+                    html += '<table><thead><tr style="background: var(--bg-secondary);"><th>代碼</th><th>股票名稱</th>';
+                    const firstFocusStock = data.focus_report.focus_stocks_list[0];
+                    if (firstFocusStock && (firstFocusStock.chg_pct !== null && firstFocusStock.chg_pct !== undefined)) {
+                        html += '<th style="text-align: right;">漲跌 (%)</th>';
+                    }
+                    if (firstFocusStock && (firstFocusStock.turnover !== null && firstFocusStock.turnover !== undefined)) {
+                        html += '<th style="text-align: right;">週轉率 (%)</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+                    data.focus_report.focus_stocks_list.forEach(stock => {
+                        html += '<tr><td>' + stock.code + '</td><td>' + stock.name + '</td>';
+                        if (stock.chg_pct !== null && stock.chg_pct !== undefined) {
+                            html += '<td style="text-align: right;">' + (stock.chg_pct >= 0 ? '+' : '') + stock.chg_pct.toFixed(2) + '</td>';
+                        }
+                        if (stock.turnover !== null && stock.turnover !== undefined) {
+                            html += '<td style="text-align: right;">' + stock.turnover.toFixed(2) + '</td>';
+                        }
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div></details></div>';
+                }
+                
+                // 未分類注意股
+                if (data.focus_report.unclassified_stocks && data.focus_report.unclassified_stocks.length > 0) {
+                    html += '<div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border-left: 4px solid var(--color-warning);">';
+                    html += '<div class="card-header">';
+                    html += '<h3 class="card-title">📦 未分類注意股：' + data.focus_report.unclassified_stocks.length + ' 檔</h3>';
+                    html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">這些注意股不在任何族群定義中</p>';
+                    html += '</div>';
+                    html += '<details style="margin-top: 16px;"><summary style="cursor: pointer; color: var(--color-warning); font-weight: 600; padding: 8px;">查看未分類注意股清單（' + data.focus_report.unclassified_stocks.length + ' 檔）</summary>';
+                    html += '<div class="table-wrapper" style="margin-top: 12px;">';
+                    html += '<table><thead><tr style="background: var(--bg-secondary);"><th>代碼</th><th>股票名稱</th>';
+                    const firstFocusStock = data.focus_report.unclassified_stocks[0];
+                    if (firstFocusStock && (firstFocusStock.chg_pct !== null && firstFocusStock.chg_pct !== undefined)) {
+                        html += '<th style="text-align: right;">漲跌 (%)</th>';
+                    }
+                    if (firstFocusStock && (firstFocusStock.turnover !== null && firstFocusStock.turnover !== undefined)) {
+                        html += '<th style="text-align: right;">週轉率 (%)</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+                    data.focus_report.unclassified_stocks.forEach(stock => {
+                        html += '<tr><td>' + stock.code + '</td><td>' + stock.name + '</td>';
+                        if (stock.chg_pct !== null && stock.chg_pct !== undefined) {
+                            html += '<td style="text-align: right;">' + (stock.chg_pct >= 0 ? '+' : '') + stock.chg_pct.toFixed(2) + '</td>';
+                        }
+                        if (stock.turnover !== null && stock.turnover !== undefined) {
+                            html += '<td style="text-align: right;">' + stock.turnover.toFixed(2) + '</td>';
+                        }
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div></details></div>';
+                }
+                html += '</div>';
+            }
+            
+            contentDiv.innerHTML = html;
+        }
+        
+        function switchReportTab(tabName) {
+            // 隱藏所有報告標籤內容
+            document.querySelectorAll('.report-tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // 移除所有按鈕的 active 類別
+            document.querySelectorAll('#themeAnalysisContent .tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.borderBottomColor = 'transparent';
+                btn.style.color = 'var(--text-secondary)';
+            });
+            
+            // 顯示選中的標籤內容
+            const content = document.getElementById('report-content-' + tabName);
+            if (content) {
+                content.style.display = 'block';
+            }
+            
+            // 添加 active 類別到選中的按鈕
+            const button = document.getElementById('report-tab-' + tabName);
+            if (button) {
+                button.classList.add('active');
+                button.style.borderBottomColor = 'var(--color-primary)';
+                button.style.color = 'var(--color-primary)';
+            }
+        }
+        
+        // 切換族群個股清單顯示（在表格內展開）
+        function toggleThemeStocksInTable(reportType, themeName, safeThemeId) {
+            const stocksRow = document.getElementById('theme-stocks-row-' + safeThemeId);
+            const button = document.getElementById('btn-' + safeThemeId);
+            
+            if (!stocksRow || !button) {
+                console.error('找不到元素:', { stocksRow, button, safeThemeId });
+                return;
+            }
+            
+            // 檢查當前狀態：使用 getComputedStyle 來獲取實際的顯示狀態
+            const computedStyle = window.getComputedStyle(stocksRow);
+            const isCurrentlyHidden = stocksRow.style.display === 'none' || 
+                                     stocksRow.style.display === '' || 
+                                     computedStyle.display === 'none';
+            
+            if (isCurrentlyHidden) {
+                // 展開
+                stocksRow.style.display = 'table-row';
+                button.textContent = '關閉清單';
+                button.style.background = 'var(--color-warning)';
+                // 平滑滾動到展開的行
+                setTimeout(() => {
+                    stocksRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 50);
+            } else {
+                // 關閉
+                stocksRow.style.display = 'none';
+                button.textContent = '查看個股';
+                button.style.background = reportType === 'turnover' ? 'var(--color-primary)' : 'var(--color-error)';
+            }
+        }
+    </script>
+    
+</body>
+</html>
