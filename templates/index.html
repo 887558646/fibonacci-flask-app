@@ -778,19 +778,19 @@
         
         <!-- 標籤頁導覽 -->
         <div class="tabs-container">
-            <button class="tab-button active" onclick="switchTab('fibonacci')" id="tab-fibonacci">
+            <button class="tab-button {% if active_tab == 'fibonacci' %}active{% endif %}" onclick="switchTab('fibonacci')" id="tab-fibonacci">
                 📊 斐波那契計算
             </button>
-            <button class="tab-button" onclick="switchTab('signals')" id="tab-signals">
+            <button class="tab-button {% if active_tab == 'signals' %}active{% endif %}" onclick="switchTab('signals')" id="tab-signals">
                 📈 股票訊號
             </button>
-            <button class="tab-button" onclick="switchTab('themes')" id="tab-themes">
+            <button class="tab-button {% if active_tab == 'themes' %}active{% endif %}" onclick="switchTab('themes')" id="tab-themes">
                 🔥 族群分析
             </button>
         </div>
         
         <!-- 斐波那契計算標籤頁 -->
-        <div id="content-fibonacci" class="tab-content active">
+        <div id="content-fibonacci" class="tab-content {% if active_tab == 'fibonacci' %}active{% endif %}">
         <div class="section">
                 <div class="section-header">
                     <span class="icon">📊</span>
@@ -920,7 +920,7 @@
         </div>
         
         <!-- 股票訊號標籤頁 -->
-        <div id="content-signals" class="tab-content">
+        <div id="content-signals" class="tab-content {% if active_tab == 'signals' %}active{% endif %}">
         <div class="section">
                 <div class="section-header">
                     <span class="icon">📈</span>
@@ -1139,7 +1139,7 @@
         </div>
 
         <!-- 族群熱度分析標籤頁 -->
-        <div id="content-themes" class="tab-content">
+        <div id="content-themes" class="tab-content {% if active_tab == 'themes' %}active{% endif %}">
         <div class="section">
                 <div class="section-header">
                     <span class="icon">🔥</span>
@@ -1215,6 +1215,14 @@
             // 滾動到頂部
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+        
+        // 頁面載入時，根據後端參數自動切換到對應標籤頁
+        document.addEventListener('DOMContentLoaded', function() {
+            const activeTab = '{{ active_tab }}';
+            if (activeTab && activeTab !== 'fibonacci') {
+                switchTab(activeTab);
+            }
+        });
         
         // 表單提交時顯示載入狀態
         document.getElementById('fibonacciForm')?.addEventListener('submit', function(e) {

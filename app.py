@@ -42,10 +42,12 @@ def index():
         'range_value': None,
         'signal_error': None,
         'stock_signals': None,
+        'active_tab': 'fibonacci',  # 預設標籤頁
     }
     
     # 處理斐波那契計算表單
     if request.method == 'POST' and request.form.get('form_type') == 'fibonacci':
+        context['active_tab'] = 'fibonacci'
         try:
             from routes.fibonacci_routes import fibonacci_calculator
             fibo_result = fibonacci_calculator()
@@ -62,6 +64,7 @@ def index():
     
     # 處理股票訊號表單
     if request.method == 'POST' and request.form.get('form_type') == 'signal':
+        context['active_tab'] = 'signals'
         try:
             from routes.stock_signals_routes import stock_signals
             signals_result = stock_signals()
