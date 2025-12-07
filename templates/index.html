@@ -1482,17 +1482,13 @@
                 html += '</div>';
                 
                 html += '<div class="metric-card">';
-                html += '<div class="metric-label">✅ 有週轉率</div>';
-                html += '<div class="metric-value">' + data.focus_report.summary.merged_count + ' 檔</div>';
+                html += '<div class="metric-label">📈 一般股票</div>';
+                html += '<div class="metric-value">' + (data.focus_report.summary.normal_stock_count || 0) + ' 檔</div>';
                 html += '</div>';
                 
                 html += '<div class="metric-card">';
-                html += '<div class="metric-label">📈 平均週轉率</div>';
-                if (data.focus_report.summary.avg_turnover !== null && data.focus_report.summary.avg_turnover !== undefined) {
-                    html += '<div class="metric-value">' + data.focus_report.summary.avg_turnover.toFixed(2) + '%</div>';
-                } else {
-                    html += '<div class="metric-value">N/A</div>';
-                }
+                html += '<div class="metric-label">🏷️ 涉及族群</div>';
+                html += '<div class="metric-value">' + (data.focus_report.summary.classified_themes || 0) + ' 個</div>';
                 html += '</div>';
                 html += '</div>';
                 
@@ -1500,20 +1496,19 @@
                 html += '<div class="card">';
                 html += '<div class="card-header">';
                 html += '<h3 class="card-title">🔥 注意股族群熱度排行</h3>';
-                html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">依出現檔數與平均週轉率排序</p>';
+                html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">依注意股出現檔數排序（與族群定義檔比較）</p>';
                 html += '</div>';
                 
                 if (data.focus_report.theme_heat_ranking && data.focus_report.theme_heat_ranking.length > 0) {
                     html += '<div class="table-wrapper">';
                     html += '<table class="table-resistance" id="focus-theme-table">';
-                    html += '<thead><tr><th>排名</th><th>族群名稱</th><th style="text-align: right;">出現檔數</th><th style="text-align: right;">平均週轉率 (%)</th><th>操作</th></tr></thead><tbody>';
+                    html += '<thead><tr><th>排名</th><th>族群名稱</th><th style="text-align: right;">出現檔數</th><th>操作</th></tr></thead><tbody>';
                     data.focus_report.theme_heat_ranking.forEach((theme, idx) => {
                         const safeThemeId = 'focus-' + theme.theme_name.replace(/[^a-zA-Z0-9]/g, '-');
                         html += '<tr id="theme-row-' + safeThemeId + '">';
                         html += '<td style="font-weight: 600; color: var(--color-primary);">' + (idx + 1) + '</td>';
                         html += '<td>' + theme.theme_name + '</td>';
-                        html += '<td style="text-align: right;">' + theme.count_in_topN + '</td>';
-                        html += '<td style="text-align: right; font-weight: 600; color: var(--color-error);">' + theme.avg_turnover.toFixed(2) + '</td>';
+                        html += '<td style="text-align: right; font-weight: 600; color: var(--color-error);">' + theme.count_in_topN + '</td>';
                         html += '<td><button onclick="toggleThemeStocksInTable(\'focus\', \'' + theme.theme_name + '\', \'' + safeThemeId + '\')" id="btn-' + safeThemeId + '" style="padding: 6px 12px; background: var(--color-error); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">查看個股</button></td>';
                         html += '</tr>';
                         
@@ -1521,7 +1516,7 @@
                         const themeStocks = data.focus_report.theme_stocks && data.focus_report.theme_stocks[theme.theme_name] || [];
                         if (themeStocks.length > 0) {
                             html += '<tr id="theme-stocks-row-' + safeThemeId + '" style="display: none;">';
-                            html += '<td colspan="5" style="padding: 12px 16px; background: #fef2f2; border-top: 1px solid #fee2e2;">';
+                            html += '<td colspan="4" style="padding: 12px 16px; background: #fef2f2; border-top: 1px solid #fee2e2;">';
                             // 簡化顯示：直接列出個股，不使用嵌套表格
                             html += '<div style="display: flex; flex-wrap: wrap; gap: 12px;">';
                             themeStocks.forEach((stock, stockIdx) => {
@@ -1560,8 +1555,8 @@
                     html += '<table><thead><tr style="background: var(--bg-gradient-error); color: white;"><th>股票名稱</th><th>事項</th></tr></thead><tbody>';
                     data.focus_report.focus_stocks_list.forEach(stock => {
                         html += '<tr>';
-                        html += '<td style="font-weight: 600;">' + stock.code + stock.name + '</td>';
-                        html += '<td style="text-align: left; line-height: 1.6;">' + (stock.detail || '') + '</td>';
+                        html += '<td style="font-size: 15px; font-weight: 600;">' + stock.code + stock.name + '</td>';
+                        html += '<td style="font-size: 14px; line-height: 1.6; text-align: left;">' + (stock.detail || '') + '</td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table></div></details></div>';

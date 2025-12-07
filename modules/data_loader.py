@@ -56,10 +56,10 @@ def load_supply_chain_json(json_path: Optional[str] = None, use_session_state: b
             else:
                 # 最後嘗試其他可能的路徑
                 all_themes_path = base_path / "all_themes_supply_chain.json"
-                if all_themes_path.exists():
-                    json_path = all_themes_path
-                else:
-                    json_path = base_path / "data" / "themes_supply_chain.json"
+            if all_themes_path.exists():
+                json_path = all_themes_path
+            else:
+                json_path = base_path / "data" / "themes_supply_chain.json"
 
     json_path = Path(json_path)
     if not json_path.exists():

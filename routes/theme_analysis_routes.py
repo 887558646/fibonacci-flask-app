@@ -63,28 +63,40 @@ def analyze():
         # 嘗試載入注意股
         focus_df = pd.DataFrame()
         focus_report_data = None
-        focus_merged = pd.DataFrame()
+        focus_stock_to_themes = {}
         
         try:
             focus_df = load_attention_stocks_from_web()
             if not focus_df.empty:
-                # 合併注意股與週轉率資料
-                focus_merged = focus_df.merge(
-                    stocks_df,
-                    on="code",
-                    how="inner",
-                    suffixes=("_focus", "")
+                # 標準化代碼格式
+                focus_df['code'] = focus_df['code'].astype(str).str.strip()
+                
+                # 為注意股建立標準化代碼欄位（用於族群映射）
+                # 只對 4 位代碼的注意股進行族群映射（6 位代碼是權證，不在族群定義中）
+                focus_df['code_normalized'] = focus_df['code'].apply(
+                    lambda x: x.zfill(4) if len(x) <= 4 else ''
                 )
                 
-                if not focus_merged.empty:
-                    focus_stock_to_themes = map_stock_to_themes(focus_merged, themes_data)
-                    focus_theme_heat_df = calc_theme_heat(focus_merged, focus_stock_to_themes)
+                # 建立一個用於族群分析的 DataFrame（只包含一般股票，排除權證）
+                focus_for_theme = focus_df[focus_df['code_normalized'] != ''].copy()
+                focus_for_theme['code'] = focus_for_theme['code_normalized']
+                
+                if not focus_for_theme.empty:
+                    # 獨立對所有注意股進行族群映射（不需要週轉率資料）
+                    focus_stock_to_themes = map_stock_to_themes(focus_for_theme, themes_data)
+                    focus_theme_heat_df = calc_theme_heat(focus_for_theme, focus_stock_to_themes)
                     focus_report_data = build_theme_report(
-                        focus_merged, focus_theme_heat_df, focus_stock_to_themes, themes_data
+                        focus_for_theme, focus_theme_heat_df, focus_stock_to_themes, themes_data
                     )
+                
+                # 移除臨時欄位
+                if 'code_normalized' in focus_df.columns:
+                    focus_df = focus_df.drop(columns=['code_normalized'])
         except Exception as e:
-            # 注意股載入失敗不影響主流程
-            pass
+            # 注意股載入失敗不影響主流程，但記錄錯誤以便調試
+            import traceback
+            print(f"注意股載入失敗: {str(e)}")
+            print(traceback.format_exc())
         
         # 計算平均週轉率
         avg_turnover = float(stocks_df['turnover'].mean()) if not stocks_df.empty else 0.0
@@ -144,101 +156,83 @@ def analyze():
                     'chg_pct': float(row.get('chg_pct', 0)) if pd.notna(row.get('chg_pct')) else None,
                 })
         
-        # 如果有注意股資料（即使沒有匹配到週轉率資料，也要顯示注意股清單）
+        # 如果有注意股資料，獨立分析族群熱度
         if not focus_df.empty:
-            # 只有在 focus_merged 不為空時才計算族群相關資料
-            focus_stock_to_themes = {}
-            focus_avg_turnover = None
-            if not focus_merged.empty:
-                focus_stock_to_themes = map_stock_to_themes(focus_merged, themes_data)
-                focus_avg_turnover = float(focus_merged['turnover'].mean())
-            
-            # 準備注意股清單
-            # 使用 focus_merged 來獲取正確的股票名稱（因為 focus_df 的 name 可能包含敘述）
+            # 準備注意股清單（直接使用爬取的資料）
             focus_stocks_list = []
-            # 建立一個 code -> name 的映射，優先使用 focus_merged 中的名稱
-            name_map = {}
-            if not focus_merged.empty:
-                for _, row in focus_merged.iterrows():
-                    stock_code = str(row["code"]).zfill(4)
-                    name_map[stock_code] = row.get('name', '')
             
-            # 遍歷 focus_df，但使用 name_map 中的正確名稱
+            # 遍歷 focus_df，使用爬取的資料
             for _, row in focus_df.iterrows():
-                stock_code = str(row["code"]).zfill(4)
-                original_name = row.get('name', '')
-                
-                # 優先使用合併後的名稱，如果沒有則使用原始名稱
-                stock_name = name_map.get(stock_code, original_name)
-                
-                # 如果原始名稱看起來像事項描述（長度較長或包含特定關鍵字），保留作為事項
-                # 否則事項為空
-                detail = ''
-                if original_name and original_name != stock_name:
-                    # 如果原始名稱和股票名稱不同，且原始名稱看起來像事項描述
-                    if len(original_name) > 10 or any(keyword in original_name for keyword in ["款", "倍", "%", "營業日", "累積", "成交量", "週轉率", "收盤價", "漲幅", "當日沖銷", "本益比", "淨值比", "證券商"]):
-                        detail = original_name
-                
-                # 從 focus_merged 中獲取週轉率和漲跌幅（如果有的話）
-                turnover = None
-                chg_pct = None
-                if not focus_merged.empty:
-                    merged_row = focus_merged[focus_merged['code'] == stock_code]
-                    if not merged_row.empty:
-                        turnover = float(merged_row.iloc[0].get('turnover', 0)) if pd.notna(merged_row.iloc[0].get('turnover')) else None
-                        chg_pct = float(merged_row.iloc[0].get('chg_pct', 0)) if pd.notna(merged_row.iloc[0].get('chg_pct')) else None
+                # 保持原始代碼格式，不強制補零（因為代碼不一定是4碼）
+                stock_code = str(row["code"]).strip()
+                stock_name = row.get('name', '')
+                # 直接使用爬取的事項描述
+                detail = row.get('detail', '') if 'detail' in row.index else ''
                 
                 focus_stocks_list.append({
-                    'code': stock_code,
+                    'code': stock_code,  # 使用原始代碼格式
                     'name': stock_name,
-                    'detail': detail,  # 事項描述
-                    'turnover': turnover,
-                    'chg_pct': chg_pct,
+                    'detail': detail,  # 事項描述（從爬取的資料中取得）
                 })
             
-            # 為每個注意股族群準備個股清單（只有在有 focus_report_data 時才處理）
+            # 計算一般股票（非權證）的注意股數量
+            normal_stock_count = len([s for s in focus_stocks_list if len(s['code']) <= 4])
+            
+            # 為每個注意股族群準備個股清單
             focus_theme_stocks_map = {}
             theme_heat_ranking = []
-            if focus_report_data and not focus_merged.empty:
+            unclassified_stocks = []
+            
+            if focus_report_data:
+                theme_heat_ranking = focus_report_data['theme_heat_ranking'].to_dict('records')
+                
+                # 建立一個用於查詢的 DataFrame
+                focus_for_theme = focus_df.copy()
+                focus_for_theme['code_normalized'] = focus_for_theme['code'].apply(
+                    lambda x: x.zfill(4) if len(x) <= 4 else ''
+                )
+                focus_for_theme = focus_for_theme[focus_for_theme['code_normalized'] != '']
+                focus_for_theme['code'] = focus_for_theme['code_normalized']
+                
                 for theme_name in focus_report_data['theme_heat_ranking']['theme_name'].tolist():
                     from modules.theme_engine import get_stocks_in_theme
-                    theme_stocks = get_stocks_in_theme(focus_merged, focus_stock_to_themes, theme_name)
+                    theme_stocks = get_stocks_in_theme(focus_for_theme, focus_stock_to_themes, theme_name)
                     if not theme_stocks.empty:
                         focus_theme_stocks_map[theme_name] = []
                         for _, stock_row in theme_stocks.iterrows():
                             stock_code = str(stock_row["code"]).zfill(4)
+                            # 從原始 focus_df 中查找名稱
+                            orig_row = focus_df[focus_df['code'].str.zfill(4) == stock_code]
+                            stock_name = orig_row.iloc[0].get('name', '') if not orig_row.empty else stock_row.get('name', '')
                             focus_theme_stocks_map[theme_name].append({
                                 'code': stock_code,
-                                'name': stock_row.get('name', ''),
-                                'turnover': float(stock_row.get('turnover', 0)) if pd.notna(stock_row.get('turnover')) else None,
-                                'chg_pct': float(stock_row.get('chg_pct', 0)) if pd.notna(stock_row.get('chg_pct')) else None,
+                                'name': stock_name,
                             })
-                theme_heat_ranking = focus_report_data['theme_heat_ranking'].to_dict('records')
+                
+                # 找出未分類注意股（一般股票中不屬於任何族群的）
+                for _, row in focus_for_theme.iterrows():
+                    stock_code = str(row["code"]).zfill(4)
+                    themes = focus_stock_to_themes.get(stock_code, [])
+                    if not themes:
+                        # 從原始 focus_df 中查找名稱
+                        orig_row = focus_df[focus_df['code'].str.zfill(4) == stock_code]
+                        stock_name = orig_row.iloc[0].get('name', '') if not orig_row.empty else row.get('name', '')
+                        unclassified_stocks.append({
+                            'code': stock_code,
+                            'name': stock_name,
+                        })
             
             result['focus_report'] = {
                 'summary': {
                     'total_focus_stocks': len(focus_df),
-                    'merged_count': len(focus_merged),
-                    'avg_turnover': focus_avg_turnover
+                    'normal_stock_count': normal_stock_count,  # 一般股票（非權證）數量
+                    'classified_themes': len(theme_heat_ranking)  # 涉及的族群數
                 },
                 'theme_heat_ranking': theme_heat_ranking,
                 'theme_stocks': focus_theme_stocks_map,  # 每個族群的個股清單
                 'focus_stocks_list': focus_stocks_list,  # 注意股清單
-                'unclassified_stocks': []
+                'unclassified_stocks': unclassified_stocks  # 未分類注意股
             }
-            
-            # 找出未分類注意股（只有在有 focus_merged 時才處理）
-            if not focus_merged.empty:
-                for _, row in focus_merged.iterrows():
-                    stock_code = str(row["code"]).zfill(4)
-                    themes = focus_stock_to_themes.get(stock_code, [])
-                    if not themes:
-                        result['focus_report']['unclassified_stocks'].append({
-                            'code': stock_code,
-                            'name': row.get('name', ''),
-                            'turnover': float(row.get('turnover', 0)) if pd.notna(row.get('turnover')) else None,
-                            'chg_pct': float(row.get('chg_pct', 0)) if pd.notna(row.get('chg_pct')) else None,
-                        })
         
         return jsonify(result)
         

@@ -116,6 +116,9 @@ def fetch_attention_stock_data() -> pd.DataFrame:
     """
     從 MoneyDJ 抓取注意股資料。
     URL: https://www.moneydj.com/Z/ZE/ZEV/ZEV.djhtm
+    
+    Returns:
+        DataFrame，包含 code, name, detail 欄位
     """
     url = "https://www.moneydj.com/Z/ZE/ZEV/ZEV.djhtm"
     headers = {
@@ -129,132 +132,79 @@ def fetch_attention_stock_data() -> pd.DataFrame:
         stocks = []
         seen_codes = set()
         
-        # 策略 1: 針對 MoneyDJ 特有的 Link2Stk 連結進行解析 (最準確)
-        # 格式: <a href="javascript:Link2Stk('AS2375');">2375凱美</a>
         soup = BeautifulSoup(response.text, 'html.parser')
-        links = soup.find_all('a', href=re.compile(r"Link2Stk"))
         
-        for link in links:
-            # 解析 href 中的代碼: javascript:Link2Stk('AS2375');
-            match = re.search(r"'AS(\d{4})'", link.get('href', ''))
-            if match:
-                code = match.group(1)
+        # MoneyDJ 使用 JavaScript 動態生成連結
+        # 結構：<td><script>GenLink2stk('AQ087470','道瓊銅永豐53購01');</script></td>
+        #       <td>事項描述...</td>
+        # 
+        # 策略：從 script 標籤中提取 GenLink2stk 函數的參數
+        
+        main_table = soup.find('table', {'id': 'oMainTable'})
+        if main_table:
+            rows = main_table.find_all('tr')
+            for row in rows:
+                tds = row.find_all('td')
+                if len(tds) < 2:
+                    continue
+                
+                # 第一個 td 包含 script 標籤
+                first_td = tds[0]
+                script = first_td.find('script')
+                if not script or not script.string:
+                    continue
+                
+                # 解析 GenLink2stk('AQ087470','道瓊銅永豐53購01');
+                match = re.search(r"GenLink2stk\('([A-Z]{1,2})(\d+)','([^']+)'\)", script.string)
+                if not match:
+                    continue
+                
+                prefix = match.group(1)  # AQ, AS 等
+                code = match.group(2)    # 數字代碼
+                name = match.group(3)    # 名稱
                 
                 if code in seen_codes:
                     continue
-                    
-                # 解析連結文字中的名稱
-                text = link.get_text(strip=True)
-                # 通常是 "2375凱美" 或 "2375 凱美"
-                name = text.replace(code, '').strip()
                 
-                # 如果名稱為空，嘗試從 title 屬性或其他地方找，或者這只是代碼連結
-                if not name:
-                    continue
+                # 第二個 td 是事項描述
+                detail = tds[1].get_text(strip=True) if len(tds) >= 2 else ''
                 
-                # 如果名稱太長（超過20個字元），可能是敘述文字，嘗試提取簡短的股票名稱
-                # 通常股票名稱是2-4個中文字
-                if len(name) > 20:
-                    # 嘗試提取前幾個中文字作為股票名稱
-                    import re
-                    name_match = re.search(r'^([\u4e00-\u9fff]{2,4})', name)
-                    if name_match:
-                        name = name_match.group(1)
-                    else:
-                        # 如果無法提取，跳過這筆資料（名稱可能是敘述）
-                        continue
-                    
-                stocks.append({'code': code, 'name': name})
+                stocks.append({'code': code, 'name': name, 'detail': detail})
                 seen_codes.add(code)
         
         if stocks:
             return pd.DataFrame(stocks)
-
-        # 策略 2: 嘗試用 pandas read_html 解析表格 (備用)
-        try:
-            from io import StringIO
-            dfs = pd.read_html(StringIO(response.text))
-            for df in dfs:
-                df_str = df.astype(str)
-                # 尋找包含股票代碼的欄位 (可能混合了名稱)
-                for col in df_str.columns:
-                    # 檢查欄位值是否包含 4 位數字
-                    # 我們看前幾列是否有符合格式的
-                    sample = df_str[col].head(10).astype(str)
-                    has_codes = sample.str.contains(r'\d{4}').sum()
-                    
-                    if has_codes >= 1:
-                        # 嘗試從該欄位提取代碼和名稱
-                        # 情況 A: 代碼和名稱在同一欄 (例如 "2375凱美")
-                        extracted = df_str[col].str.extract(r'(\d{4})\s*([\u4e00-\u9fff]+.*)?')
-                        extracted.columns = ['code', 'name']
-                        
-                        # 情況 B: 代碼在這一欄，名稱在下一欄
-                        if extracted['name'].isna().all() or (extracted['name'] == '').all():
-                            col_idx = df_str.columns.get_loc(col)
-                            if col_idx + 1 < len(df_str.columns):
-                                name_col = df_str.columns[col_idx + 1]
-                                extracted['name'] = df_str[name_col]
-                        
-                        # 過濾有效資料
-                        valid_stocks = extracted.dropna(subset=['code']).copy()
-                        if not valid_stocks.empty:
-                            # 清理名稱 (移除可能的代碼殘留)
-                            def clean_stock_name(row):
-                                name_str = str(row['name']).replace(str(row['code']), '').strip()
-                                # 如果名稱太長（超過20個字元），可能是敘述文字，嘗試提取簡短的股票名稱
-                                if len(name_str) > 20:
-                                    name_match = re.search(r'^([\u4e00-\u9fff]{2,4})', name_str)
-                                    if name_match:
-                                        return name_match.group(1)
-                                    else:
-                                        return ''  # 無法提取，返回空字串
-                                return name_str
-                            
-                            valid_stocks.loc[:, 'name'] = valid_stocks.apply(clean_stock_name, axis=1)
-                            # 移除空名稱
-                            valid_stocks = valid_stocks[valid_stocks['name'] != '']
-                            
-                            if not valid_stocks.empty:
-                                return valid_stocks.drop_duplicates(subset=['code']).reset_index(drop=True)
-        except:
-            pass
-            
-        # 策略 3: Regex 全文搜索 (最後手段)
-        text_content = soup.get_text('\n')
-        # 放寬限制：允許代碼和名稱之間有少量字元
-        pattern = re.compile(r"(\d{4})\s*.*?([\u4e00-\u9fff]+)")
         
-        for line in text_content.split('\n'):
-            line = line.strip()
-            if not line: continue
-            
-            # 排除明顯不是股票的行 (例如日期)
-            if "日期" in line or "注意" in line:
+        # 備用策略：從所有 script 標籤中提取
+        scripts = soup.find_all('script')
+        for script in scripts:
+            if not script.string or 'GenLink2stk' not in script.string:
                 continue
-                
-            matches = pattern.finditer(line)
+            
+            matches = re.findall(r"GenLink2stk\('([A-Z]{1,2})(\d+)','([^']+)'\)", script.string)
             for match in matches:
-                code = match.group(1)
-                name = match.group(2)
+                prefix = match[0]
+                code = match[1]
+                name = match[2]
                 
-                # 如果名稱太長（超過20個字元），可能是敘述文字，嘗試提取簡短的股票名稱
-                if len(name) > 20:
-                    name_match = re.search(r'^([\u4e00-\u9fff]{2,4})', name)
-                    if name_match:
-                        name = name_match.group(1)
-                    else:
-                        # 如果無法提取，跳過這筆資料
-                        continue
+                if code in seen_codes:
+                    continue
                 
-                # 簡單驗證名稱長度，避免抓到雜訊
-                # 股票名稱通常是2-4個中文字，太長或太短都可能是錯誤的
-                if 2 <= len(name) <= 10 and code not in seen_codes:
-                    stocks.append({'code': code, 'name': name})
-                    seen_codes.add(code)
-                    
+                # 嘗試從父元素找事項描述
+                detail = ''
+                parent_td = script.find_parent('td')
+                if parent_td:
+                    parent_tr = parent_td.find_parent('tr')
+                    if parent_tr:
+                        sibling_tds = parent_tr.find_all('td')
+                        if len(sibling_tds) >= 2:
+                            detail = sibling_tds[1].get_text(strip=True)
+                
+                stocks.append({'code': code, 'name': name, 'detail': detail})
+                seen_codes.add(code)
+        
         if not stocks:
-            raise Exception("無法解析注意股內容 (找不到表格或符合格式的文字)")
+            raise Exception("無法解析注意股內容 (找不到 GenLink2stk 函數)")
             
         return pd.DataFrame(stocks)
 

@@ -185,6 +185,9 @@ def calc_theme_heat(
     """
     # 統計每個族群
     theme_stats: Dict[str, Dict] = {}
+    
+    # 檢查是否有 turnover 欄位
+    has_turnover = "turnover" in stocks_df.columns
 
     for _, row in stocks_df.iterrows():
         stock_code = str(row["code"]).zfill(4)
@@ -200,7 +203,10 @@ def calc_theme_heat(
                 }
 
             theme_stats[theme_name]["count"] += 1
-            theme_stats[theme_name]["turnover_sum"] += row["turnover"]
+            
+            # 只有在有 turnover 欄位時才累加
+            if has_turnover and pd.notna(row.get("turnover")):
+                theme_stats[theme_name]["turnover_sum"] += row["turnover"]
 
             if pd.notna(row.get("chg_pct")):
                 theme_stats[theme_name]["chg_pct_sum"] += row["chg_pct"]
@@ -210,7 +216,7 @@ def calc_theme_heat(
     results = []
     for theme_name, stats in theme_stats.items():
         count = stats["count"]
-        avg_turnover = stats["turnover_sum"] / count if count > 0 else 0.0
+        avg_turnover = stats["turnover_sum"] / count if count > 0 and has_turnover else 0.0
 
         avg_chg_pct = None
         if stats["chg_pct_count"] > 0:
@@ -266,8 +272,11 @@ def get_stocks_in_theme(
         return pd.DataFrame()
 
     df = pd.DataFrame(matching_stocks)
-    # 按週轉率排序
-    df = df.sort_values("turnover", ascending=False).reset_index(drop=True)
+    # 如果有 turnover 欄位，按週轉率排序；否則按代碼排序
+    if "turnover" in df.columns:
+        df = df.sort_values("turnover", ascending=False).reset_index(drop=True)
+    else:
+        df = df.sort_values("code", ascending=True).reset_index(drop=True)
     return df
 
 
