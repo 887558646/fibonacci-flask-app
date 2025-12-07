@@ -1312,7 +1312,12 @@
             const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
             
             // 準備標籤頁
-            const hasFocusReport = data.focus_report && data.focus_report.theme_heat_ranking && data.focus_report.theme_heat_ranking.length > 0;
+            // 只要有 focus_report 就顯示注意股分析報告（即使沒有匹配到族群）
+            const hasFocusReport = data.focus_report && (
+                (data.focus_report.theme_heat_ranking && data.focus_report.theme_heat_ranking.length > 0) ||
+                (data.focus_report.focus_stocks_list && data.focus_report.focus_stocks_list.length > 0) ||
+                (data.focus_report.unclassified_stocks && data.focus_report.unclassified_stocks.length > 0)
+            );
             
             let html = '';
             

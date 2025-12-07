@@ -7,7 +7,6 @@ from flask import Blueprint, request, jsonify
 import sys
 import os
 import pandas as pd
-import re
 from datetime import datetime
 
 # 添加父目錄到路徑
@@ -145,44 +144,30 @@ def analyze():
                     'chg_pct': float(row.get('chg_pct', 0)) if pd.notna(row.get('chg_pct')) else None,
                 })
         
-        # 如果有注意股報告
-        if focus_report_data and not focus_merged.empty:
-            focus_stock_to_themes = map_stock_to_themes(focus_merged, themes_data)
-            focus_avg_turnover = float(focus_merged['turnover'].mean()) if not focus_merged.empty else None
+        # 如果有注意股資料（即使沒有匹配到週轉率資料，也要顯示注意股清單）
+        if not focus_df.empty:
+            # 只有在 focus_merged 不為空時才計算族群相關資料
+            focus_stock_to_themes = {}
+            focus_avg_turnover = None
+            if not focus_merged.empty:
+                focus_stock_to_themes = map_stock_to_themes(focus_merged, themes_data)
+                focus_avg_turnover = float(focus_merged['turnover'].mean())
             
             # 準備注意股清單
             # 使用 focus_merged 來獲取正確的股票名稱（因為 focus_df 的 name 可能包含敘述）
             focus_stocks_list = []
-            # 建立一個 code -> name 的映射，優先使用 focus_merged 中的名稱（來自 stocks_df，包含正確的股票名稱）
+            # 建立一個 code -> name 的映射，優先使用 focus_merged 中的名稱
             name_map = {}
             if not focus_merged.empty:
                 for _, row in focus_merged.iterrows():
                     stock_code = str(row["code"]).zfill(4)
-                    # 使用合併後的名稱（來自 stocks_df，是正確的股票名稱）
                     name_map[stock_code] = row.get('name', '')
             
-            # 也從 stocks_df 建立映射，以確保所有注意股都能獲取正確的名稱
-            stocks_name_map = {}
-            for _, row in stocks_df.iterrows():
-                stock_code = str(row["code"]).zfill(4)
-                stocks_name_map[stock_code] = row.get('name', '')
-            
-            # 遍歷 focus_df，優先使用合併後的名稱，其次使用 stocks_df 中的名稱，最後才使用原始名稱
+            # 遍歷 focus_df，但使用 name_map 中的正確名稱
             for _, row in focus_df.iterrows():
                 stock_code = str(row["code"]).zfill(4)
-                # 優先順序：1. focus_merged 中的名稱 2. stocks_df 中的名稱 3. 原始名稱（但會過濾掉太長的名稱）
-                stock_name = name_map.get(stock_code) or stocks_name_map.get(stock_code) or row.get('name', '')
-                
-                # 如果名稱太長（超過20個字元），可能是敘述文字，嘗試從 stocks_df 獲取
-                if len(str(stock_name)) > 20:
-                    stock_name = stocks_name_map.get(stock_code, '')
-                    # 如果還是太長或為空，嘗試提取簡短的股票名稱
-                    if len(str(stock_name)) > 20 or not stock_name:
-                        name_match = re.search(r'^([\u4e00-\u9fff]{2,4})', str(row.get('name', '')))
-                        if name_match:
-                            stock_name = name_match.group(1)
-                        else:
-                            stock_name = ''  # 無法提取，使用空字串
+                # 優先使用合併後的名稱，如果沒有則使用原始名稱
+                stock_name = name_map.get(stock_code, row.get('name', ''))
                 
                 # 從 focus_merged 中獲取週轉率和漲跌幅（如果有的話）
                 turnover = None
@@ -193,30 +178,31 @@ def analyze():
                         turnover = float(merged_row.iloc[0].get('turnover', 0)) if pd.notna(merged_row.iloc[0].get('turnover')) else None
                         chg_pct = float(merged_row.iloc[0].get('chg_pct', 0)) if pd.notna(merged_row.iloc[0].get('chg_pct')) else None
                 
-                # 只添加有名稱的股票
-                if stock_name:
-                    focus_stocks_list.append({
-                        'code': stock_code,
-                        'name': stock_name,
-                        'turnover': turnover,
-                        'chg_pct': chg_pct,
-                    })
+                focus_stocks_list.append({
+                    'code': stock_code,
+                    'name': stock_name,
+                    'turnover': turnover,
+                    'chg_pct': chg_pct,
+                })
             
-            # 為每個注意股族群準備個股清單
+            # 為每個注意股族群準備個股清單（只有在有 focus_report_data 時才處理）
             focus_theme_stocks_map = {}
-            for theme_name in focus_report_data['theme_heat_ranking']['theme_name'].tolist():
-                from modules.theme_engine import get_stocks_in_theme
-                theme_stocks = get_stocks_in_theme(focus_merged, focus_stock_to_themes, theme_name)
-                if not theme_stocks.empty:
-                    focus_theme_stocks_map[theme_name] = []
-                    for _, stock_row in theme_stocks.iterrows():
-                        stock_code = str(stock_row["code"]).zfill(4)
-                        focus_theme_stocks_map[theme_name].append({
-                            'code': stock_code,
-                            'name': stock_row.get('name', ''),
-                            'turnover': float(stock_row.get('turnover', 0)) if pd.notna(stock_row.get('turnover')) else None,
-                            'chg_pct': float(stock_row.get('chg_pct', 0)) if pd.notna(stock_row.get('chg_pct')) else None,
-                        })
+            theme_heat_ranking = []
+            if focus_report_data and not focus_merged.empty:
+                for theme_name in focus_report_data['theme_heat_ranking']['theme_name'].tolist():
+                    from modules.theme_engine import get_stocks_in_theme
+                    theme_stocks = get_stocks_in_theme(focus_merged, focus_stock_to_themes, theme_name)
+                    if not theme_stocks.empty:
+                        focus_theme_stocks_map[theme_name] = []
+                        for _, stock_row in theme_stocks.iterrows():
+                            stock_code = str(stock_row["code"]).zfill(4)
+                            focus_theme_stocks_map[theme_name].append({
+                                'code': stock_code,
+                                'name': stock_row.get('name', ''),
+                                'turnover': float(stock_row.get('turnover', 0)) if pd.notna(stock_row.get('turnover')) else None,
+                                'chg_pct': float(stock_row.get('chg_pct', 0)) if pd.notna(stock_row.get('chg_pct')) else None,
+                            })
+                theme_heat_ranking = focus_report_data['theme_heat_ranking'].to_dict('records')
             
             result['focus_report'] = {
                 'summary': {
@@ -224,23 +210,24 @@ def analyze():
                     'merged_count': len(focus_merged),
                     'avg_turnover': focus_avg_turnover
                 },
-                'theme_heat_ranking': focus_report_data['theme_heat_ranking'].to_dict('records'),
+                'theme_heat_ranking': theme_heat_ranking,
                 'theme_stocks': focus_theme_stocks_map,  # 每個族群的個股清單
                 'focus_stocks_list': focus_stocks_list,  # 注意股清單
                 'unclassified_stocks': []
             }
             
-            # 找出未分類注意股
-            for _, row in focus_merged.iterrows():
-                stock_code = str(row["code"]).zfill(4)
-                themes = focus_stock_to_themes.get(stock_code, [])
-                if not themes:
-                    result['focus_report']['unclassified_stocks'].append({
-                        'code': stock_code,
-                        'name': row.get('name', ''),
-                        'turnover': float(row.get('turnover', 0)) if pd.notna(row.get('turnover')) else None,
-                        'chg_pct': float(row.get('chg_pct', 0)) if pd.notna(row.get('chg_pct')) else None,
-                    })
+            # 找出未分類注意股（只有在有 focus_merged 時才處理）
+            if not focus_merged.empty:
+                for _, row in focus_merged.iterrows():
+                    stock_code = str(row["code"]).zfill(4)
+                    themes = focus_stock_to_themes.get(stock_code, [])
+                    if not themes:
+                        result['focus_report']['unclassified_stocks'].append({
+                            'code': stock_code,
+                            'name': row.get('name', ''),
+                            'turnover': float(row.get('turnover', 0)) if pd.notna(row.get('turnover')) else None,
+                            'chg_pct': float(row.get('chg_pct', 0)) if pd.notna(row.get('chg_pct')) else None,
+                        })
         
         return jsonify(result)
         
