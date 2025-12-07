@@ -1545,29 +1545,23 @@
                 // 注意股清單
                 if (data.focus_report.focus_stocks_list && data.focus_report.focus_stocks_list.length > 0) {
                     html += '<div class="card" style="margin-top: 24px;">';
-                    html += '<div class="card-header">';
+                    html += '<div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">';
+                    html += '<div>';
                     html += '<h3 class="card-title">⚠️ 注意股清單 (' + data.focus_report.focus_stocks_list.length + ' 檔)</h3>';
                     html += '<p style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 8px;">完整的注意股清單</p>';
                     html += '</div>';
+                    const today = new Date();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    html += '<div style="color: var(--text-secondary); font-size: var(--font-size-small);">日期: ' + month + '/' + day + '</div>';
+                    html += '</div>';
                     html += '<details style="margin-top: 16px;"><summary style="cursor: pointer; color: var(--color-error); font-weight: 600; padding: 8px;">查看完整清單（' + data.focus_report.focus_stocks_list.length + ' 檔）</summary>';
                     html += '<div class="table-wrapper" style="margin-top: 12px;">';
-                    html += '<table><thead><tr style="background: var(--bg-gradient-error); color: white;"><th>代碼</th><th>股票名稱</th>';
-                    const firstFocusStock = data.focus_report.focus_stocks_list[0];
-                    if (firstFocusStock && (firstFocusStock.chg_pct !== null && firstFocusStock.chg_pct !== undefined)) {
-                        html += '<th style="text-align: right;">漲跌 (%)</th>';
-                    }
-                    if (firstFocusStock && (firstFocusStock.turnover !== null && firstFocusStock.turnover !== undefined)) {
-                        html += '<th style="text-align: right;">週轉率 (%)</th>';
-                    }
-                    html += '</tr></thead><tbody>';
+                    html += '<table><thead><tr style="background: var(--bg-gradient-error); color: white;"><th>股票名稱</th><th>事項</th></tr></thead><tbody>';
                     data.focus_report.focus_stocks_list.forEach(stock => {
-                        html += '<tr><td>' + stock.code + '</td><td>' + stock.name + '</td>';
-                        if (stock.chg_pct !== null && stock.chg_pct !== undefined) {
-                            html += '<td style="text-align: right;">' + (stock.chg_pct >= 0 ? '+' : '') + stock.chg_pct.toFixed(2) + '</td>';
-                        }
-                        if (stock.turnover !== null && stock.turnover !== undefined) {
-                            html += '<td style="text-align: right;">' + stock.turnover.toFixed(2) + '</td>';
-                        }
+                        html += '<tr>';
+                        html += '<td style="font-weight: 600;">' + stock.code + stock.name + '</td>';
+                        html += '<td style="text-align: left; line-height: 1.6;">' + (stock.detail || '') + '</td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table></div></details></div>';

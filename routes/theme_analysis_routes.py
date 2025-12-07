@@ -166,8 +166,18 @@ def analyze():
             # 遍歷 focus_df，但使用 name_map 中的正確名稱
             for _, row in focus_df.iterrows():
                 stock_code = str(row["code"]).zfill(4)
+                original_name = row.get('name', '')
+                
                 # 優先使用合併後的名稱，如果沒有則使用原始名稱
-                stock_name = name_map.get(stock_code, row.get('name', ''))
+                stock_name = name_map.get(stock_code, original_name)
+                
+                # 如果原始名稱看起來像事項描述（長度較長或包含特定關鍵字），保留作為事項
+                # 否則事項為空
+                detail = ''
+                if original_name and original_name != stock_name:
+                    # 如果原始名稱和股票名稱不同，且原始名稱看起來像事項描述
+                    if len(original_name) > 10 or any(keyword in original_name for keyword in ["款", "倍", "%", "營業日", "累積", "成交量", "週轉率", "收盤價", "漲幅", "當日沖銷", "本益比", "淨值比", "證券商"]):
+                        detail = original_name
                 
                 # 從 focus_merged 中獲取週轉率和漲跌幅（如果有的話）
                 turnover = None
@@ -181,6 +191,7 @@ def analyze():
                 focus_stocks_list.append({
                     'code': stock_code,
                     'name': stock_name,
+                    'detail': detail,  # 事項描述
                     'turnover': turnover,
                     'chg_pct': chg_pct,
                 })
